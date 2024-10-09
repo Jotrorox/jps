@@ -12,6 +12,8 @@
 #define PIXELS_PER_METER 100  // This defines our scale
 #define BOUNCE_DAMPING 0.8
 #define MAX_BALLS 100
+#define AIR_RESISTANCE 0.1
+#define FRICTION 0.1
 
 typedef struct {
     float x, y;  // position in pixels
@@ -46,6 +48,10 @@ void updateBall(Ball* ball, float deltaTime) {
     // Apply gravity
     ball->vy += GRAVITY * deltaTime;
 
+    // Apply air resistance
+    ball->vx *= (1 - AIR_RESISTANCE * deltaTime);
+    ball->vy *= (1 - AIR_RESISTANCE * deltaTime);
+
     // Update position
     ball->x += ball->vx * PIXELS_PER_METER * deltaTime;
     ball->y += ball->vy * PIXELS_PER_METER * deltaTime;
@@ -66,9 +72,11 @@ void updateBall(Ball* ball, float deltaTime) {
     } else if (ball->y + BALL_RADIUS > WINDOW_HEIGHT) {
         ball->y = WINDOW_HEIGHT - BALL_RADIUS;
         ball->vy = -ball->vy * BOUNCE_DAMPING;
+
+        // Apply friction when on the ground
+        ball->vx *= (1 - FRICTION * deltaTime);
     }
 }
-
 void addBall(int x, int y) {
     if (ballCount < MAX_BALLS) {
         Ball newBall = {
