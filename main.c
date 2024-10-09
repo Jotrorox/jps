@@ -82,6 +82,50 @@ void addBall(int x, int y) {
     }
 }
 
+void handleBallCollisions() {
+    for (int i = 0; i < ballCount; i++) {
+        for (int j = i + 1; j < ballCount; j++) {
+            Ball* ball1 = &balls[i];
+            Ball* ball2 = &balls[j];
+
+            float dx = ball2->x - ball1->x;
+            float dy = ball2->y - ball1->y;
+            float distance = sqrt(dx * dx + dy * dy);
+
+            if (distance < 2 * BALL_RADIUS) {
+                // Calculate normal and tangent vectors
+                float nx = dx / distance;
+                float ny = dy / distance;
+                float tx = -ny;
+                float ty = nx;
+
+                // Decompose velocities into normal and tangential components
+                float v1n = ball1->vx * nx + ball1->vy * ny;
+                float v1t = ball1->vx * tx + ball1->vy * ty;
+                float v2n = ball2->vx * nx + ball2->vy * ny;
+                float v2t = ball2->vx * tx + ball2->vy * ty;
+
+                // Swap the normal components of the velocities (elastic collision)
+                float v1n_after = v2n;
+                float v2n_after = v1n;
+
+                // Recalculate the velocities
+                ball1->vx = v1n_after * nx + v1t * tx;
+                ball1->vy = v1n_after * ny + v1t * ty;
+                ball2->vx = v2n_after * nx + v2t * tx;
+                ball2->vy = v2n_after * ny + v2t * ty;
+
+                // Separate the balls to avoid overlap
+                float overlap = 2 * BALL_RADIUS - distance;
+                ball1->x -= overlap * nx / 2;
+                ball1->y -= overlap * ny / 2;
+                ball2->x += overlap * nx / 2;
+                ball2->y += overlap * ny / 2;
+            }
+        }
+    }
+}
+
 int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
@@ -153,6 +197,8 @@ int main(int argc, char* argv[]) {
         for (int i = 0; i < ballCount; i++) {
             updateBall(&balls[i], deltaTime);
         }
+
+        handleBallCollisions();  // Add this line to handle collisions
 
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
