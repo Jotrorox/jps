@@ -18,6 +18,8 @@
 typedef struct {
     float x, y;  // position in pixels
     float vx, vy;  // velocity in m/s
+    float radius;  // radius in pixels
+    float mass;  // mass in kg
     SDL_Color color;
 } Ball;
 
@@ -77,13 +79,16 @@ void updateBall(Ball* ball, float deltaTime) {
         ball->vx *= (1 - FRICTION * deltaTime);
     }
 }
-void addBall(int x, int y) {
+
+void addBall(int x, int y, float radius, float mass) {
     if (ballCount < MAX_BALLS) {
         Ball newBall = {
             .x = x,
             .y = y,
             .vx = (rand() % 200 - 100) / 100.0f,  // Random velocity between -1 and 1 m/s
             .vy = 0,
+            .radius = radius,
+            .mass = mass,
             .color = getRandomColor()
         };
         balls[ballCount++] = newBall;
@@ -100,7 +105,7 @@ void handleBallCollisions() {
             float dy = ball2->y - ball1->y;
             float distance = sqrt(dx * dx + dy * dy);
 
-            if (distance < 2 * BALL_RADIUS) {
+            if (distance < ball1->radius + ball2->radius) {
                 // Calculate normal and tangent vectors
                 float nx = dx / distance;
                 float ny = dy / distance;
@@ -113,9 +118,9 @@ void handleBallCollisions() {
                 float v2n = ball2->vx * nx + ball2->vy * ny;
                 float v2t = ball2->vx * tx + ball2->vy * ty;
 
-                // Swap the normal components of the velocities (elastic collision)
-                float v1n_after = v2n;
-                float v2n_after = v1n;
+                // Calculate new normal velocities using conservation of momentum
+                float v1n_after = (v1n * (ball1->mass - ball2->mass) + 2 * ball2->mass * v2n) / (ball1->mass + ball2->mass);
+                float v2n_after = (v2n * (ball2->mass - ball1->mass) + 2 * ball1->mass * v1n) / (ball1->mass + ball2->mass);
 
                 // Recalculate the velocities
                 ball1->vx = v1n_after * nx + v1t * tx;
@@ -124,7 +129,7 @@ void handleBallCollisions() {
                 ball2->vy = v2n_after * ny + v2t * ty;
 
                 // Separate the balls to avoid overlap
-                float overlap = 2 * BALL_RADIUS - distance;
+                float overlap = ball1->radius + ball2->radius - distance;
                 ball1->x -= overlap * nx / 2;
                 ball1->y -= overlap * ny / 2;
                 ball2->x += overlap * nx / 2;
@@ -181,6 +186,9 @@ int main(int argc, char* argv[]) {
     int frameCount = 0;
     double fps = 0;
 
+    float nextBallRadius = 10.0f;  // Default radius
+    float nextBallMass = 1.0f;     // Default mass
+
     while (!quit) {
         LAST = NOW;
         NOW = SDL_GetPerformanceCounter();
@@ -198,7 +206,24 @@ int main(int argc, char* argv[]) {
             } else if (e.type == SDL_MOUSEBUTTONDOWN) {
                 int mouseX, mouseY;
                 SDL_GetMouseState(&mouseX, &mouseY);
-                addBall(mouseX, mouseY);
+                addBall(mouseX, mouseY, nextBallRadius, nextBallMass);
+            } else if (e.type == SDL_KEYDOWN) {
+                switch (e.key.keysym.sym) {
+                    case SDLK_UP:
+                        nextBallRadius += 1.0f;
+                        break;
+                    case SDLK_DOWN:
+                        nextBallRadius -= 1.0f;
+                        if (nextBallRadius < 1.0f) nextBallRadius = 1.0f;
+                        break;
+                    case SDLK_RIGHT:
+                        nextBallMass += 1.0f;
+                        break;
+                    case SDLK_LEFT:
+                        nextBallMass -= 1.0f;
+                        if (nextBallMass < 1.0f) nextBallMass = 1.0f;
+                        break;
+                }
             }
         }
 
@@ -206,14 +231,32 @@ int main(int argc, char* argv[]) {
             updateBall(&balls[i], deltaTime);
         }
 
-        handleBallCollisions();  // Add this line to handle collisions
+        handleBallCollisions();
 
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
 
         for (int i = 0; i < ballCount; i++) {
-            drawCircle(renderer, (int)balls[i].x, (int)balls[i].y, BALL_RADIUS, balls[i].color);
+            drawCircle(renderer, (int)balls[i].x, (int)balls[i].y, (int)balls[i].radius, balls[i].color);
         }
+
+        // Render instructions
+        SDL_Surface* surfaceInstructions = TTF_RenderText_Solid(font, "Click to add a ball", (SDL_Color){0, 0, 0, 255});
+        SDL_Texture* instructions = SDL_CreateTextureFromSurface(renderer, surfaceInstructions);
+        SDL_Rect instructionsRect = {10, 10, surfaceInstructions->w, surfaceInstructions->h};
+        SDL_RenderCopy(renderer, instructions, NULL, &instructionsRect);
+        SDL_FreeSurface(surfaceInstructions);
+        SDL_DestroyTexture(instructions);
+
+        // Render ball properties
+        char ballPropertiesText[50];
+        snprintf(ballPropertiesText, sizeof(ballPropertiesText), "Radius: %.0f Mass: %.0f", nextBallRadius, nextBallMass);
+        SDL_Surface* surfaceBallProperties = TTF_RenderText_Solid(font, ballPropertiesText, (SDL_Color){0, 0, 0, 255});
+        SDL_Texture* ballProperties = SDL_CreateTextureFromSurface(renderer, surfaceBallProperties);
+        SDL_Rect ballPropertiesRect = {10, 40, surfaceBallProperties->w, surfaceBallProperties->h};
+        SDL_RenderCopy(renderer, ballProperties, NULL, &ballPropertiesRect);
+        SDL_FreeSurface(surfaceBallProperties);
+        SDL_DestroyTexture(ballProperties);
 
         // Render FPS
         char fpsText[20];
