@@ -1,6 +1,6 @@
 CC = gcc
 
-CFLAGS = -Wall -Wextra -Werror -pedantic -std=c99 -g -lSDL2 -lSDL2_ttf -lm
+CFLAGS = -Wall -Wextra -Werror -pedantic -std=c99 -O3 -g -lSDL2 -lSDL2_ttf -lm
 
 SRCS = $(wildcard *.c)
 OBJS = $(SRCS:.c=.o)
@@ -15,5 +15,3 @@ clean:
 
 run:
 	./$(TARGET)
-
-.PHONY: build clean run
