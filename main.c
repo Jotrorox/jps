@@ -14,6 +14,9 @@
 #define MAX_BALLS 100
 #define AIR_RESISTANCE 0.1
 #define FRICTION 0.1
+#define AIR_DENSITY 1.225 // kg/m^3
+#define DRAG_COEFFICIENT 0.47 // Coefficient for a sphere
+#define PI 3.14159265358979323846
 
 typedef struct {
     float x, y;  // position in pixels
@@ -46,13 +49,24 @@ void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius, SD
     }
 }
 
+void applyAirResistance(Ball* ball, float deltaTime) {
+    float speed = sqrt(ball->vx * ball->vx + ball->vy * ball->vy);
+    float area = PI * ball->radius * ball->radius / (PIXELS_PER_METER * PIXELS_PER_METER);
+    float dragForce = 0.5 * AIR_DENSITY * speed * speed * DRAG_COEFFICIENT * area;
+
+    float ax = -dragForce * ball->vx / (speed * ball->mass);
+    float ay = -dragForce * ball->vy / (speed * ball->mass);
+
+    ball->vx += ax * deltaTime;
+    ball->vy += ay * deltaTime;
+}
+
 void updateBall(Ball* ball, float deltaTime) {
     // Apply gravity
     ball->vy += GRAVITY * deltaTime;
 
     // Apply air resistance
-    ball->vx *= (1 - AIR_RESISTANCE * deltaTime);
-    ball->vy *= (1 - AIR_RESISTANCE * deltaTime);
+    applyAirResistance(ball, deltaTime);
 
     // Update position
     ball->x += ball->vx * PIXELS_PER_METER * deltaTime;
