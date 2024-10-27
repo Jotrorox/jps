@@ -1,17 +1,20 @@
 CC = gcc
-
-CFLAGS = -Wall -Wextra -Werror -pedantic -std=c99 -O3 -g -lSDL2 -lSDL2_ttf -lm
-
-SRCS = $(wildcard *.c)
-OBJS = $(SRCS:.c=.o)
+CFLAGS = -Wall -Wextra -Werror -pedantic -std=c99 -O3 -g
+LIBS = -lSDL2 -lSDL2_ttf -lm
 
 TARGET = jgs
+SOURCE = main.c
+OBJECT = main.o
 
-build:
-	$(CC) $(SRCS) $(CFLAGS) -o $(TARGET)
+all: $(TARGET)
+
+$(TARGET): $(OBJECT)
+	$(CC) $(OBJECT) -o $(TARGET) $(LIBS)
+
+$(OBJECT): $(SOURCE)
+	$(CC) $(CFLAGS) -c $(SOURCE)
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(OBJECT) $(TARGET)
 
-run:
-	./$(TARGET)
+.PHONY: all clean
