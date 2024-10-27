@@ -5,13 +5,20 @@
 #include <stdlib.h>
 #include <time.h>
 
+// --- CONSTANTS ---
+
+// Window Settings
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
-#define BALL_RADIUS 10
-#define GRAVITY 9.81  // m/s^2
-#define PIXELS_PER_METER 100  // This defines our scale
-#define BOUNCE_DAMPING 0.8
 #define MAX_BALLS 100
+
+// Basic Ball Settings
+#define BALL_RADIUS 10
+#define PIXELS_PER_METER 100  // This defines our scale
+
+// Physic Constants/Settings
+#define GRAVITY 9.81  // m/s^2
+#define BOUNCE_DAMPING 0.8
 #define AIR_RESISTANCE 0.1
 #define FRICTION 0.1
 #define AIR_DENSITY 1.225 // kg/m^3
@@ -50,18 +57,18 @@ void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius, SD
 }
 
 void applyAirResistance(Ball* ball, float deltaTime) {
-    float speed = sqrt(ball->vx * ball->vx + ball->vy * ball->vy);
-    float area = PI * ball->radius * ball->radius / (PIXELS_PER_METER * PIXELS_PER_METER);
-    float dragForce = 0.5 * AIR_DENSITY * speed * speed * DRAG_COEFFICIENT * area;
+    const float speed = sqrtf(ball->vx * ball->vx + ball->vy * ball->vy);
+    const float area = PI * ball->radius * ball->radius / (PIXELS_PER_METER * PIXELS_PER_METER);
+    const float dragForce = 0.5 * AIR_DENSITY * speed * speed * DRAG_COEFFICIENT * area;
 
-    float ax = -dragForce * ball->vx / (speed * ball->mass);
-    float ay = -dragForce * ball->vy / (speed * ball->mass);
+    const float ax = -dragForce * ball->vx / (speed * ball->mass);
+    const float ay = -dragForce * ball->vy / (speed * ball->mass);
 
     ball->vx += ax * deltaTime;
     ball->vy += ay * deltaTime;
 }
 
-void updateBall(Ball* ball, float deltaTime) {
+void updateBall(Ball* ball, const float deltaTime) {
     // Apply gravity
     ball->vy += GRAVITY * deltaTime;
 
@@ -94,9 +101,9 @@ void updateBall(Ball* ball, float deltaTime) {
     }
 }
 
-void addBall(int x, int y, float radius, float mass) {
+void addBall(const int x, const int y, const float radius, const float mass) {
     if (ballCount < MAX_BALLS) {
-        Ball newBall = {
+        const Ball newBall = {
             .x = x,
             .y = y,
             .vx = (rand() % 200 - 100) / 100.0f,  // Random velocity between -1 and 1 m/s
@@ -115,26 +122,26 @@ void handleBallCollisions() {
             Ball* ball1 = &balls[i];
             Ball* ball2 = &balls[j];
 
-            float dx = ball2->x - ball1->x;
-            float dy = ball2->y - ball1->y;
-            float distance = sqrt(dx * dx + dy * dy);
+            const float dx = ball2->x - ball1->x;
+            const float dy = ball2->y - ball1->y;
+            const float distance = sqrtf(dx * dx + dy * dy);
 
             if (distance < ball1->radius + ball2->radius) {
                 // Calculate normal and tangent vectors
-                float nx = dx / distance;
-                float ny = dy / distance;
-                float tx = -ny;
-                float ty = nx;
+                const float nx = dx / distance;
+                const float ny = dy / distance;
+                const float tx = -ny;
+                const float ty = nx;
 
                 // Decompose velocities into normal and tangential components
-                float v1n = ball1->vx * nx + ball1->vy * ny;
-                float v1t = ball1->vx * tx + ball1->vy * ty;
-                float v2n = ball2->vx * nx + ball2->vy * ny;
-                float v2t = ball2->vx * tx + ball2->vy * ty;
+                const float v1n = ball1->vx * nx + ball1->vy * ny;
+                const float v1t = ball1->vx * tx + ball1->vy * ty;
+                const float v2n = ball2->vx * nx + ball2->vy * ny;
+                const float v2t = ball2->vx * tx + ball2->vy * ty;
 
                 // Calculate new normal velocities using conservation of momentum
-                float v1n_after = (v1n * (ball1->mass - ball2->mass) + 2 * ball2->mass * v2n) / (ball1->mass + ball2->mass);
-                float v2n_after = (v2n * (ball2->mass - ball1->mass) + 2 * ball1->mass * v1n) / (ball1->mass + ball2->mass);
+                const float v1n_after = (v1n * (ball1->mass - ball2->mass) + 2 * ball2->mass * v2n) / (ball1->mass + ball2->mass);
+                const float v2n_after = (v2n * (ball2->mass - ball1->mass) + 2 * ball1->mass * v1n) / (ball1->mass + ball2->mass);
 
                 // Recalculate the velocities
                 ball1->vx = v1n_after * nx + v1t * tx;
@@ -143,7 +150,7 @@ void handleBallCollisions() {
                 ball2->vy = v2n_after * ny + v2t * ty;
 
                 // Separate the balls to avoid overlap
-                float overlap = ball1->radius + ball2->radius - distance;
+                const float overlap = ball1->radius + ball2->radius - distance;
                 ball1->x -= overlap * nx / 2;
                 ball1->y -= overlap * ny / 2;
                 ball2->x += overlap * nx / 2;
@@ -153,7 +160,7 @@ void handleBallCollisions() {
     }
 }
 
-int main(int argc, char* argv[]) {
+int main(const int argc, char* argv[]) {
     (void)argc;
     (void)argv;
 
@@ -206,7 +213,7 @@ int main(int argc, char* argv[]) {
     while (!quit) {
         LAST = NOW;
         NOW = SDL_GetPerformanceCounter();
-        deltaTime = (double)((NOW - LAST) / (double)SDL_GetPerformanceFrequency());
+        deltaTime = (NOW - LAST) / (double)SDL_GetPerformanceFrequency();
         frameCount++;
 
         if (frameCount >= 60) {
@@ -237,6 +244,7 @@ int main(int argc, char* argv[]) {
                         nextBallMass -= 1.0f;
                         if (nextBallMass < 1.0f) nextBallMass = 1.0f;
                         break;
+                    default: ;
                 }
             }
         }
