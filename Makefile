@@ -6,7 +6,10 @@ TARGET = jgs
 SOURCE = main.c
 OBJECT = main.o
 
-all: $(TARGET)
+all: build
+	./$(TARGET)
+
+build: $(TARGET)
 
 $(TARGET): $(OBJECT)
 	$(CC) $(OBJECT) -o $(TARGET) $(LIBS)
@@ -17,4 +20,4 @@ $(OBJECT): $(SOURCE)
 clean:
 	rm -f $(OBJECT) $(TARGET)
 
-.PHONY: all clean
+.PHONY: all build clean
