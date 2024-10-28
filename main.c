@@ -11,6 +11,7 @@
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 #define MAX_BALLS 100
+#define FPS_BUFFER_SIZE 60
 
 // Basic Ball Settings
 #define BALL_RADIUS 10
@@ -26,10 +27,10 @@
 #define PI 3.14159265358979323846
 
 typedef struct {
-    float x, y;  // position in pixels
-    float vx, vy;  // velocity in m/s
-    float radius;  // radius in pixels
-    float mass;  // mass in kg
+    float x, y; // position in pixels
+    float vx, vy; // velocity in m/s
+    float radius; // radius in pixels
+    float mass; // mass in kg
     SDL_Color color;
 } Ball;
 
@@ -45,18 +46,30 @@ SDL_Color getRandomColor() {
     return color;
 }
 
-void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius, SDL_Color color) {
+double fpsBuffer[FPS_BUFFER_SIZE] = {0};
+int fpsBufferIndex = 0;
+
+double calculateAverageFPS() {
+    double sum = 0;
+    for (int i = 0; i < FPS_BUFFER_SIZE; i++) {
+        sum += fpsBuffer[i];
+    }
+    return sum / FPS_BUFFER_SIZE;
+}
+
+void drawCircle(SDL_Renderer *renderer, const int centerX, const int centerY, const int radius, const SDL_Color color) {
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    const int radiusSquared = radius * radius;
     for (int x = centerX - radius; x <= centerX + radius; x++) {
         for (int y = centerY - radius; y <= centerY + radius; y++) {
-            if ((pow(centerX - x, 2) + pow(centerY - y, 2)) <= pow(radius, 2)) {
+            if (pow(centerX - x, 2) + pow(centerY - y, 2) <= radiusSquared) {
                 SDL_RenderDrawPoint(renderer, x, y);
             }
         }
     }
 }
 
-void applyAirResistance(Ball* ball, float deltaTime) {
+void applyAirResistance(Ball *ball, float deltaTime) {
     const float speed = sqrtf(ball->vx * ball->vx + ball->vy * ball->vy);
     const float area = PI * ball->radius * ball->radius / (PIXELS_PER_METER * PIXELS_PER_METER);
     const float dragForce = 0.5 * AIR_DENSITY * speed * speed * DRAG_COEFFICIENT * area;
@@ -68,7 +81,7 @@ void applyAirResistance(Ball* ball, float deltaTime) {
     ball->vy += ay * deltaTime;
 }
 
-void updateBall(Ball* ball, const float deltaTime) {
+void updateBall(Ball *ball, const float deltaTime) {
     // Apply gravity
     ball->vy += GRAVITY * deltaTime;
 
@@ -106,7 +119,7 @@ void addBall(const int x, const int y, const float radius, const float mass) {
         const Ball newBall = {
             .x = x,
             .y = y,
-            .vx = (rand() % 200 - 100) / 100.0f,  // Random velocity between -1 and 1 m/s
+            .vx = (rand() % 200 - 100) / 100.0f, // Random velocity between -1 and 1 m/s
             .vy = 0,
             .radius = radius,
             .mass = mass,
@@ -119,8 +132,8 @@ void addBall(const int x, const int y, const float radius, const float mass) {
 void handleBallCollisions() {
     for (int i = 0; i < ballCount; i++) {
         for (int j = i + 1; j < ballCount; j++) {
-            Ball* ball1 = &balls[i];
-            Ball* ball2 = &balls[j];
+            Ball *ball1 = &balls[i];
+            Ball *ball2 = &balls[j];
 
             const float dx = ball2->x - ball1->x;
             const float dy = ball2->y - ball1->y;
@@ -140,8 +153,10 @@ void handleBallCollisions() {
                 const float v2t = ball2->vx * tx + ball2->vy * ty;
 
                 // Calculate new normal velocities using conservation of momentum
-                const float v1n_after = (v1n * (ball1->mass - ball2->mass) + 2 * ball2->mass * v2n) / (ball1->mass + ball2->mass);
-                const float v2n_after = (v2n * (ball2->mass - ball1->mass) + 2 * ball1->mass * v1n) / (ball1->mass + ball2->mass);
+                const float v1n_after = (v1n * (ball1->mass - ball2->mass) + 2 * ball2->mass * v2n) / (
+                                            ball1->mass + ball2->mass);
+                const float v2n_after = (v2n * (ball2->mass - ball1->mass) + 2 * ball1->mass * v1n) / (
+                                            ball1->mass + ball2->mass);
 
                 // Recalculate the velocities
                 ball1->vx = v1n_after * nx + v1t * tx;
@@ -160,13 +175,13 @@ void handleBallCollisions() {
     }
 }
 
-int main(const int argc, char* argv[]) {
-    (void)argc;
-    (void)argv;
+int main(const int argc, char *argv[]) {
+    (void) argc;
+    (void) argv;
 
-    SDL_Window* window = NULL;
-    SDL_Renderer* renderer = NULL;
-    TTF_Font* font = NULL;
+    SDL_Window *window = NULL;
+    SDL_Renderer *renderer = NULL;
+    TTF_Font *font = NULL;
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         SDL_Log("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
@@ -178,7 +193,8 @@ int main(const int argc, char* argv[]) {
         return 1;
     }
 
-    window = SDL_CreateWindow("Interactive Multi-Ball Physics Simulation", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    window = SDL_CreateWindow("Interactive Multi-Ball Physics Simulation", SDL_WINDOWPOS_UNDEFINED,
+                              SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
     if (window == NULL) {
         SDL_Log("Window could not be created! SDL_Error: %s\n", SDL_GetError());
         return 1;
@@ -196,7 +212,7 @@ int main(const int argc, char* argv[]) {
         return 1;
     }
 
-    srand(time(NULL));  // Initialize random seed
+    srand(time(NULL)); // Initialize random seed
 
     bool quit = false;
     SDL_Event e;
@@ -207,20 +223,22 @@ int main(const int argc, char* argv[]) {
     int frameCount = 0;
     double fps = 0;
 
-    float nextBallRadius = 10.0f;  // Default radius
-    float nextBallMass = 1.0f;     // Default mass
+    float nextBallRadius = 10.0f; // Default radius
+    float nextBallMass = 1.0f; // Default mass
 
     while (!quit) {
         LAST = NOW;
         NOW = SDL_GetPerformanceCounter();
-        deltaTime = (NOW - LAST) / (double)SDL_GetPerformanceFrequency();
+        deltaTime = (NOW - LAST) / (double) SDL_GetPerformanceFrequency();
         frameCount++;
 
+        fpsBuffer[fpsBufferIndex] = 1.0 / deltaTime;
+        fpsBufferIndex = (fpsBufferIndex + 1) % FPS_BUFFER_SIZE;
+
         if (frameCount >= 60) {
-            fps = 1.0 / deltaTime;
+            fps = calculateAverageFPS();
             frameCount = 0;
         }
-
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
                 quit = true;
@@ -259,12 +277,12 @@ int main(const int argc, char* argv[]) {
         SDL_RenderClear(renderer);
 
         for (int i = 0; i < ballCount; i++) {
-            drawCircle(renderer, (int)balls[i].x, (int)balls[i].y, (int)balls[i].radius, balls[i].color);
+            drawCircle(renderer, (int) balls[i].x, (int) balls[i].y, (int) balls[i].radius, balls[i].color);
         }
 
         // Render instructions
-        SDL_Surface* surfaceInstructions = TTF_RenderText_Solid(font, "Click to add a ball", (SDL_Color){0, 0, 0, 255});
-        SDL_Texture* instructions = SDL_CreateTextureFromSurface(renderer, surfaceInstructions);
+        SDL_Surface *surfaceInstructions = TTF_RenderText_Solid(font, "Click to add a ball", (SDL_Color){0, 0, 0, 255});
+        SDL_Texture *instructions = SDL_CreateTextureFromSurface(renderer, surfaceInstructions);
         SDL_Rect instructionsRect = {10, 10, surfaceInstructions->w, surfaceInstructions->h};
         SDL_RenderCopy(renderer, instructions, NULL, &instructionsRect);
         SDL_FreeSurface(surfaceInstructions);
@@ -272,23 +290,24 @@ int main(const int argc, char* argv[]) {
 
         // Render ball properties
         char ballPropertiesText[50];
-        snprintf(ballPropertiesText, sizeof(ballPropertiesText), "Radius: %.0f Mass: %.0f", nextBallRadius, nextBallMass);
-        SDL_Surface* surfaceBallProperties = TTF_RenderText_Solid(font, ballPropertiesText, (SDL_Color){0, 0, 0, 255});
-        SDL_Texture* ballProperties = SDL_CreateTextureFromSurface(renderer, surfaceBallProperties);
+        snprintf(ballPropertiesText, sizeof(ballPropertiesText), "Radius: %.0f Mass: %.0f", nextBallRadius,
+                 nextBallMass);
+        SDL_Surface *surfaceBallProperties = TTF_RenderText_Solid(font, ballPropertiesText, (SDL_Color){0, 0, 0, 255});
+        SDL_Texture *ballProperties = SDL_CreateTextureFromSurface(renderer, surfaceBallProperties);
         SDL_Rect ballPropertiesRect = {10, 40, surfaceBallProperties->w, surfaceBallProperties->h};
         SDL_RenderCopy(renderer, ballProperties, NULL, &ballPropertiesRect);
         SDL_FreeSurface(surfaceBallProperties);
         SDL_DestroyTexture(ballProperties);
 
         // Render FPS
-        char fpsText[20];
+        char fpsText[50];
         snprintf(fpsText, sizeof(fpsText), "FPS: %.0f", fps);
-        SDL_Surface* surfaceMessage = TTF_RenderText_Solid(font, fpsText, (SDL_Color){0, 0, 0, 255});
-        SDL_Texture* message = SDL_CreateTextureFromSurface(renderer, surfaceMessage);
-        SDL_Rect messageRect = {WINDOW_WIDTH - 125, 10, surfaceMessage->w, surfaceMessage->h};
-        SDL_RenderCopy(renderer, message, NULL, &messageRect);
-        SDL_FreeSurface(surfaceMessage);
-        SDL_DestroyTexture(message);
+        SDL_Surface *surfaceFPS = TTF_RenderText_Solid(font, fpsText, (SDL_Color){0, 0, 0, 255});
+        SDL_Texture *fpsTexture = SDL_CreateTextureFromSurface(renderer, surfaceFPS);
+        SDL_Rect fpsRect = {10, 70, surfaceFPS->w, surfaceFPS->h};
+        SDL_RenderCopy(renderer, fpsTexture, NULL, &fpsRect);
+        SDL_FreeSurface(surfaceFPS);
+        SDL_DestroyTexture(fpsTexture);
 
         SDL_RenderPresent(renderer);
     }
