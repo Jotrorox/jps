@@ -11,7 +11,7 @@
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 #define MAX_BALLS 100
-#define FPS_BUFFER_SIZE 60
+#define MAX_FPS_BUFFER_SIZE 300
 
 // Basic Ball Settings
 #define BALL_RADIUS 10
@@ -46,15 +46,16 @@ SDL_Color getRandomColor() {
     return color;
 }
 
-double fpsBuffer[FPS_BUFFER_SIZE] = {0};
+double fpsBuffer[MAX_FPS_BUFFER_SIZE] = {0};
 int fpsBufferIndex = 0;
+int currentBufferSize = 0;
 
 double calculateAverageFPS() {
     double sum = 0;
-    for (int i = 0; i < FPS_BUFFER_SIZE; i++) {
+    for (int i = 0; i < currentBufferSize; i++) {
         sum += fpsBuffer[i];
     }
-    return sum / FPS_BUFFER_SIZE;
+    return sum / currentBufferSize;
 }
 
 void drawCircle(SDL_Renderer *renderer, const int centerX, const int centerY, const int radius, const SDL_Color color) {
@@ -220,25 +221,25 @@ int main(const int argc, char *argv[]) {
     Uint64 NOW = SDL_GetPerformanceCounter();
     Uint64 LAST = 0;
     double deltaTime = 0;
-    int frameCount = 0;
     double fps = 0;
 
     float nextBallRadius = 10.0f; // Default radius
     float nextBallMass = 1.0f; // Default mass
 
     while (!quit) {
-        LAST = NOW;
-        NOW = SDL_GetPerformanceCounter();
-        deltaTime = (NOW - LAST) / (double) SDL_GetPerformanceFrequency();
-        frameCount++;
+    LAST = NOW;
+    NOW = SDL_GetPerformanceCounter();
+    deltaTime = (NOW - LAST) / (double)SDL_GetPerformanceFrequency();
 
-        fpsBuffer[fpsBufferIndex] = 1.0 / deltaTime;
-        fpsBufferIndex = (fpsBufferIndex + 1) % FPS_BUFFER_SIZE;
+    fpsBuffer[fpsBufferIndex] = 1.0 / deltaTime;
+    fpsBufferIndex = (fpsBufferIndex + 1) % MAX_FPS_BUFFER_SIZE;
 
-        if (frameCount >= 60) {
-            fps = calculateAverageFPS();
-            frameCount = 0;
-        }
+    if (currentBufferSize < MAX_FPS_BUFFER_SIZE) {
+        currentBufferSize++;
+    }
+
+    fps = calculateAverageFPS();
+
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
                 quit = true;
