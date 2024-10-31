@@ -1,9 +1,15 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_pixels.h>
 #include <SDL2/SDL_ttf.h>
 #include <stdbool.h>
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>
+
+// --- Function Prototypes ---
+SDL_Color getRandomColor(void);
+double calculateAverageFPS(void);
+void handleBallCollisions(void);
 
 // --- CONSTANTS ---
 
@@ -37,7 +43,7 @@ typedef struct {
 Ball balls[MAX_BALLS];
 int ballCount = 0;
 
-SDL_Color getRandomColor() {
+SDL_Color getRandomColor(void) {
     SDL_Color color;
     color.r = rand() % 256;
     color.g = rand() % 256;
@@ -50,7 +56,7 @@ double fpsBuffer[MAX_FPS_BUFFER_SIZE] = {0};
 int fpsBufferIndex = 0;
 int currentBufferSize = 0;
 
-double calculateAverageFPS() {
+double calculateAverageFPS(void) {
     double sum = 0;
     for (int i = 0; i < currentBufferSize; i++) {
         sum += fpsBuffer[i];
@@ -130,7 +136,7 @@ void addBall(const int x, const int y, const float radius, const float mass) {
     }
 }
 
-void handleBallCollisions() {
+void handleBallCollisions(void) {
     for (int i = 0; i < ballCount; i++) {
         for (int j = i + 1; j < ballCount; j++) {
             Ball *ball1 = &balls[i];
