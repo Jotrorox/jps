@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror -pedantic -std=c99 -O3 -g
+CFLAGS = -Wall -Wextra -Werror -pedantic -std=c99 -O3 -g -mavx2
 LIBS = -lSDL2 -lSDL2_ttf -lm
 
 TARGET = jgs

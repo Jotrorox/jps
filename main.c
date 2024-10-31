@@ -194,7 +194,7 @@ int main(const int argc, char *argv[]) {
         return 1;
     }
 
-    window = SDL_CreateWindow("Interactive Multi-Ball Physics Simulation", SDL_WINDOWPOS_UNDEFINED,
+    window = SDL_CreateWindow("JoJo's Physics Simulator", SDL_WINDOWPOS_UNDEFINED,
                               SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
     if (window == NULL) {
         SDL_Log("Window could not be created! SDL_Error: %s\n", SDL_GetError());
