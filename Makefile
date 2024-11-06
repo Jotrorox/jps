@@ -1,54 +1,27 @@
-# Compiler settings
 CC = gcc
-CLANG = clang
-CFLAGS = -Wall -Wextra -Werror -pedantic -std=c99 \
-         -O3 -flto -march=native -mavx2 -ffast-math \
-         -fomit-frame-pointer -pipe
-DEBUG_FLAGS = -g -fsanitize=address,undefined
-LIBS = -lSDL2 -lSDL2_ttf -lm
+CFLAGS = -Wall -Wextra
+LDFLAGS = $(shell sdl2-config --libs)
+CPPFLAGS = $(shell sdl2-config --cflags)
 
-# Project files
-TARGET = jgs
-SOURCE = main.c
-OBJECT = main.o
+TARGET = game
+SRC = main.c
+OBJ = $(SRC:.c=.o)
 
-# Number of CPU cores for parallel builds
-NPROC = $(shell nproc || echo 1)
+all: $(TARGET)
 
-# Default target
-.DEFAULT_GOAL := all
+release: CFLAGS += -O3 -DNDEBUG
+release: clean $(TARGET)
 
-# Main targets
-all: build
+$(TARGET): $(OBJ)
+	$(CC) $(OBJ) -o $(TARGET) $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+run: $(TARGET)
 	./$(TARGET)
 
-build: $(TARGET)
-
-clang: CC=$(CLANG)
-clang: clean $(TARGET)
-
-debug: CFLAGS += $(DEBUG_FLAGS)
-debug: clean $(TARGET)
-
-# Linking
-$(TARGET): $(OBJECT)
-	$(CC) $(OBJECT) -o $(TARGET) $(LIBS) $(CFLAGS)
-
-# Compilation
-$(OBJECT): $(SOURCE)
-	$(CC) $(CFLAGS) -c $(SOURCE)
-
-# Utilities
 clean:
-	rm -f $(OBJECT) $(TARGET)
+	rm -f $(OBJ) $(TARGET)
 
-distclean: clean
-	rm -f *~ .*.swp
-
-# Dependencies
-depend:
-	$(CC) -MM $(SOURCE) > .depends
-
--include .depends
-
-.PHONY: all build clean distclean depend clang debug
+.PHONY: all clean run release
