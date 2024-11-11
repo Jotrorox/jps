@@ -13,7 +13,7 @@ release: CFLAGS += -O3 -DNDEBUG
 release: clean $(TARGET)
 
 $(TARGET): $(OBJ)
-	$(CC) $(OBJ) -o $(TARGET) $(LDFLAGS)
+	$(CC) $(OBJ) -o $(TARGET) $(LDFLAGS) -lm
 
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
