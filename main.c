@@ -4,6 +4,8 @@
 #include <SDL_stdinc.h>
 #define _USE_MATH_DEFINES
 #include <float.h>
+#include <SDL2/SDL_ttf.h>
+#include <stdio.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -24,8 +26,7 @@
 #define COEFFICIENT_OF_RESTITUTION 0.75f  // Slightly more elastic
 #define COEFFICIENT_OF_FRICTION 0.15f     // Slightly less friction
 
-#define TARGET_FPS 60
-#define TARGET_FRAME_TIME (1000.0f / TARGET_FPS)  // in milliseconds
+#define FPS_UPDATE_INTERVAL 0.5f  // Update FPS display every 0.5 seconds
 
 typedef struct {
     float x, y;        // position in meters
@@ -52,7 +53,7 @@ void calculate_drag_force(Ball* ball, float* fx, float* fy) {
     *fy = -(drag_magnitude * ball->vy / velocity_magnitude);
 }
 
-void update_physics(Ball* ball) {
+void update_physics(Ball* ball, float delta_time) {
     // Calculate drag forces
     float drag_force_x, drag_force_y;
     calculate_drag_force(ball, &drag_force_x, &drag_force_y);
@@ -61,19 +62,17 @@ void update_physics(Ball* ball) {
     ball->ax = drag_force_x / ball->mass;
     ball->ay = GRAVITY_ACCELERATION + (drag_force_y / ball->mass);
     
-    const float time_step = 1.0f / TARGET_FPS;  // Use fixed time step
-    
-    // Update velocities (v = v₀ + at)
-    ball->vx += ball->ax * time_step;
-    ball->vy += ball->ay * time_step;
+    // Update velocities using delta_time
+    ball->vx += ball->ax * delta_time;
+    ball->vy += ball->ay * delta_time;
     
     // Store previous position for collision detection
     float prev_x = ball->x;
     float prev_y = ball->y;
     
-    // Update positions (x = x₀ + vt + ½at²)
-    ball->x += ball->vx * time_step + 0.5f * ball->ax * time_step * time_step;
-    ball->y += ball->vy * time_step + 0.5f * ball->ay * time_step * time_step;
+    // Update positions using delta_time
+    ball->x += ball->vx * delta_time + 0.5f * ball->ax * delta_time * delta_time;
+    ball->y += ball->vy * delta_time + 0.5f * ball->ay * delta_time * delta_time;
     
     // Handle collisions
     float floor_height = WINDOW_HEIGHT / PIXELS_PER_METER;
@@ -96,7 +95,7 @@ void update_physics(Ball* ball) {
             float friction_force = COEFFICIENT_OF_FRICTION * normal_force;
             float friction_deceleration = friction_force / ball->mass;
             
-            float friction_delta_v = friction_deceleration * time_step;
+            float friction_delta_v = friction_deceleration * delta_time;
             if (fabs(ball->vx) <= friction_delta_v) {
                 ball->vx = 0;
             } else {
@@ -150,11 +149,32 @@ void render_ball(SDL_Renderer* renderer, const Ball* ball) {
     }
 }
 
+void render_text(SDL_Renderer* renderer, TTF_Font* font, const char* text, int x, int y) {
+    SDL_Color color = {0, 0, 0, 255};  // Black color
+    SDL_Surface* surface = TTF_RenderText_Solid(font, text, color);
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    
+    SDL_Rect dest = {x, y, surface->w, surface->h};
+    SDL_RenderCopy(renderer, texture, NULL, &dest);
+    
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+}
+
 int main(const int argc, char *argv[]) {
     (void)argc;
     (void)argv;
     
     SDL_Init(SDL_INIT_VIDEO);
+    TTF_Init();  // Initialize SDL_ttf
+    
+    // Load font
+    TTF_Font* font = TTF_OpenFont("rsc/Ubuntu-Regular.ttf", 24);
+    if (!font) {
+        printf("Failed to load font: %s\n", TTF_GetError());
+        return 1;
+    }
+    
     SDL_Window *window = SDL_CreateWindow(
         "JPS - JoJo's Physics Simulator",
         SDL_WINDOWPOS_CENTERED,
@@ -183,8 +203,15 @@ int main(const int argc, char *argv[]) {
     
     Uint32 previous_time = SDL_GetTicks();
     float delta_time = 0.0f;
-    float accumulator = 0.0f;
-    const float fixed_time_step = 1.0f / TARGET_FPS;  // For physics updates
+
+    // Enable VSync if you want to prevent screen tearing
+    SDL_RenderSetVSync(renderer, 0);  // 0 to disable VSync, 1 to enable
+
+    // Add FPS tracking variables
+    float fps_update_timer = 0.0f;
+    int frame_count = 0;
+    float current_fps = 0.0f;
+    char fps_text[32];
 
     while (running) {
         // Calculate delta time
@@ -196,8 +223,6 @@ int main(const int argc, char *argv[]) {
         if (delta_time > 0.25f) {
             delta_time = 0.25f;
         }
-
-        accumulator += delta_time;
 
         // Handle events
         while (SDL_PollEvent(&event)) {
@@ -217,29 +242,34 @@ int main(const int argc, char *argv[]) {
             }
         }
 
-        // Update physics with fixed time step
-        while (accumulator >= fixed_time_step) {
-            update_physics(&ball);
-            accumulator -= fixed_time_step;
-        }
+        // Update physics with delta time
+        update_physics(&ball, delta_time);
         
-        // Clear screen
+        // Update FPS counter
+        frame_count++;
+        fps_update_timer += delta_time;
+        
+        if (fps_update_timer >= FPS_UPDATE_INTERVAL) {
+            current_fps = frame_count / fps_update_timer;
+            snprintf(fps_text, sizeof(fps_text), "FPS: %.1f", current_fps);
+            frame_count = 0;
+            fps_update_timer = 0.0f;
+        }
+
+        // Render
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
-        
-        // Render ball
         render_ball(renderer, &ball);
         
-        // Present render
+        // Render FPS counter
+        render_text(renderer, font, fps_text, 10, 10);
+        
         SDL_RenderPresent(renderer);
-
-        // Frame rate control
-        Uint32 frame_time = SDL_GetTicks() - current_time;
-        if (frame_time < TARGET_FRAME_TIME) {
-            SDL_Delay(TARGET_FRAME_TIME - frame_time);
-        }
     }
     
+    // Add cleanup
+    TTF_CloseFont(font);
+    TTF_Quit();
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();

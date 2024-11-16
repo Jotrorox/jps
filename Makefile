@@ -1,7 +1,7 @@
 CC = gcc
-CFLAGS = -Wall -Wextra
-LDFLAGS = $(shell sdl2-config --libs)
-CPPFLAGS = $(shell sdl2-config --cflags)
+CFLAGS = -Wall -Wextra -g
+LDFLAGS = $(shell sdl2-config --libs) -lSDL2_ttf
+CPPFLAGS = $(shell sdl2-config --cflags) -I/usr/include/SDL2 -I/usr/include/SDL2_ttf
 
 TARGET = game
 SRC = main.c

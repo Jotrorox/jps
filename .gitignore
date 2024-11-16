@@ -1,3 +1,10 @@
-jgs
-main.o
-game
+# Build artifacts
+*.o
+physics_sim
+
+# IDE files
+.idea/
+.vscode/
+
+# System files
+.DS_Store
