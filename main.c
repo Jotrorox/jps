@@ -6,6 +6,8 @@
 #include <float.h>
 #include <SDL2/SDL_ttf.h>
 #include <stdio.h>
+#include <string.h>  // For strcmp
+#include <stdlib.h>  // For atoi
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -20,7 +22,7 @@
 #define GRAVITY_ACCELERATION 9.81f  // m/s²
 #define TIME_STEP 0.016f           // 16ms in seconds (for 60 FPS)
 #define AIR_DENSITY 1.225f         // kg/m³
-#define BALL_MASS 0.1f             // kg (100g)
+#define BALL_MASS 0.1f             // kg (100g
 #define BALL_RADIUS (BALL_SIZE / (2.0f * PIXELS_PER_METER))  // Convert to meters
 #define DRAG_COEFFICIENT 0.47f     // Sphere drag coefficient
 #define COEFFICIENT_OF_RESTITUTION 0.75f  // Slightly more elastic
@@ -67,22 +69,20 @@ void update_physics(Ball* ball, float delta_time) {
     ball->vy += ball->ay * delta_time;
     
     // Store previous position for collision detection
-    float prev_x = ball->x;
-    float prev_y = ball->y;
+    float prev_x = ball->x; (void)prev_x; // Unused
+    float prev_y = ball->y; (void)prev_y; // Unused
     
     // Update positions using delta_time
     ball->x += ball->vx * delta_time + 0.5f * ball->ax * delta_time * delta_time;
     ball->y += ball->vy * delta_time + 0.5f * ball->ay * delta_time * delta_time;
     
     // Handle collisions
-    float floor_height = WINDOW_HEIGHT / PIXELS_PER_METER;
-    float right_wall = WINDOW_WIDTH / PIXELS_PER_METER;
+    float max_x = (WINDOW_WIDTH - BALL_SIZE) / PIXELS_PER_METER;
+    float max_y = (WINDOW_HEIGHT - BALL_SIZE) / PIXELS_PER_METER;
     
     // Floor collision
-    if (ball->y + ball->radius > floor_height) {
-        // Calculate the exact collision point
-        float penetration = (ball->y + ball->radius) - floor_height;
-        ball->y = floor_height - ball->radius;
+    if (ball->y > max_y) {
+        ball->y = max_y;
         
         // Only bounce if moving downward
         if (ball->vy > 0) {
@@ -105,10 +105,8 @@ void update_physics(Ball* ball, float delta_time) {
     }
     
     // Right wall collision
-    if (ball->x + ball->radius > right_wall) {
-        // Calculate the exact collision point
-        float penetration = (ball->x + ball->radius) - right_wall;
-        ball->x = right_wall - ball->radius;
+    if (ball->x > max_x) {
+        ball->x = max_x;
         
         // Only bounce if moving rightward
         if (ball->vx > 0) {
@@ -117,10 +115,8 @@ void update_physics(Ball* ball, float delta_time) {
     }
     
     // Left wall collision
-    if (ball->x - ball->radius < 0) {
-        // Calculate the exact collision point
-        float penetration = ball->radius - ball->x;
-        ball->x = ball->radius;
+    if (ball->x < 0) {
+        ball->x = 0;
         
         // Only bounce if moving leftward
         if (ball->vx < 0) {
@@ -130,20 +126,18 @@ void update_physics(Ball* ball, float delta_time) {
 }
 
 void render_ball(SDL_Renderer* renderer, const Ball* ball) {
-    int x_center = (int)(ball->x * PIXELS_PER_METER);
-    int y_center = (int)(ball->y * PIXELS_PER_METER);
-    int radius = (int)(ball->radius * PIXELS_PER_METER);
+    int x = (int)(ball->x * PIXELS_PER_METER);
+    int y = (int)(ball->y * PIXELS_PER_METER);
+    int size = BALL_SIZE;
     
     // Draw filled circle using the midpoint circle algorithm
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-    for (int w = 0; w < radius * 2; w++) {
-        for (int h = 0; h < radius * 2; h++) {
-            int dx = radius - w;
-            int dy = radius - h;
-            if ((dx*dx + dy*dy) <= (radius * radius)) {
-                SDL_RenderDrawPoint(renderer, 
-                    x_center + dx - radius, 
-                    y_center + dy - radius);
+    for (int w = 0; w < size; w++) {
+        for (int h = 0; h < size; h++) {
+            int dx = size/2 - w;
+            int dy = size/2 - h;
+            if ((dx*dx + dy*dy) <= ((size/2) * (size/2))) {
+                SDL_RenderDrawPoint(renderer, x + w, y + h);
             }
         }
     }
@@ -213,7 +207,26 @@ int main(const int argc, char *argv[]) {
     float current_fps = 0.0f;
     char fps_text[32];
 
+    // Add FPS limit handling near the start of main
+    int max_fps = 60;  // Default value
+    float frame_time_target = 1000.0f / max_fps;  // Default target time
+
+    // Parse command line arguments
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--max-fps") == 0 && i + 1 < argc) {
+            max_fps = atoi(argv[i + 1]);
+            if (max_fps < 0) max_fps = 0;  // Sanitize input
+            if (max_fps > 0) {
+                frame_time_target = 1000.0f / max_fps;
+            }
+            i++;  // Skip the next argument since we used it
+        }
+    }
+
     while (running) {
+        // Calculate frame start time
+        Uint32 frame_start = SDL_GetTicks();
+
         // Calculate delta time
         Uint32 current_time = SDL_GetTicks();
         delta_time = (current_time - previous_time) / 1000.0f;  // Convert to seconds
@@ -265,6 +278,14 @@ int main(const int argc, char *argv[]) {
         render_text(renderer, font, fps_text, 10, 10);
         
         SDL_RenderPresent(renderer);
+
+        // Modified frame limiting code
+        if (max_fps > 0) {  // Only limit frames if max_fps is not 0
+            Uint32 frame_time = SDL_GetTicks() - frame_start;
+            if (frame_time < frame_time_target) {
+                SDL_Delay(frame_time_target - frame_time);
+            }
+        }
     }
     
     // Add cleanup
