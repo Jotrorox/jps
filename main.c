@@ -18,6 +18,8 @@
 #define BALL_SIZE 15
 #define PIXELS_PER_METER 100.0f  // Conversion factor: 100 pixels = 1 meter
 
+#define MAX_BALLS 1024
+
 // Physics constants (in real-world units)
 #define GRAVITY_ACCELERATION 9.81f  // m/s²
 #define TIME_STEP 0.016f           // 16ms in seconds (for 60 FPS)
@@ -179,9 +181,12 @@ int main(const int argc, char *argv[]) {
     );
     
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    
+
+    Ball balls[MAX_BALLS];
+    int num_balls = 0;
+
     // Initialize ball with realistic values
-    Ball ball = {
+    Ball test_ball = {
         .x = WINDOW_WIDTH / (2.0f * PIXELS_PER_METER),  // Center position in meters
         .y = 1.0f,                                      // 1 meter from top
         .vx = 0.0f,                                     // Start at rest
@@ -191,6 +196,8 @@ int main(const int argc, char *argv[]) {
         .mass = BALL_MASS,
         .radius = BALL_RADIUS
     };
+
+    balls[num_balls++] = test_ball;
 
     SDL_bool running = SDL_TRUE;
     SDL_Event event;
@@ -245,18 +252,28 @@ int main(const int argc, char *argv[]) {
             if (event.type == SDL_MOUSEBUTTONDOWN) {
                 int mouseX, mouseY;
                 SDL_GetMouseState(&mouseX, &mouseY);
-                float dx = mouseX - (ball.x * PIXELS_PER_METER);
-                float dy = mouseY - (ball.y * PIXELS_PER_METER);
+                float dx = mouseX - (balls[0].x * PIXELS_PER_METER);
+                float dy = mouseY - (balls[0].y * PIXELS_PER_METER);
                 float distance = sqrt(dx*dx + dy*dy);
                 
                 float launch_speed = fmin(distance / PIXELS_PER_METER * 2.0f, 10.0f);
-                ball.vx = (dx / distance) * launch_speed;
-                ball.vy = (dy / distance) * launch_speed;
+                balls[0].vx = (dx / distance) * launch_speed;
+                balls[0].vy = (dy / distance) * launch_speed;
+            }
+            if (event.type == SDL_KEYDOWN && (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_q)) {
+                running = SDL_FALSE;
+            }
+            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_s) {
+                if (num_balls < MAX_BALLS) {
+                    balls[num_balls++] = test_ball;
+                }
             }
         }
 
         // Update physics with delta time
-        update_physics(&ball, delta_time);
+        for (int i = 0; i < num_balls; i++) {
+            update_physics(&balls[i], delta_time);
+        }
         
         // Update FPS counter
         frame_count++;
@@ -264,7 +281,7 @@ int main(const int argc, char *argv[]) {
         
         if (fps_update_timer >= FPS_UPDATE_INTERVAL) {
             current_fps = frame_count / fps_update_timer;
-            snprintf(fps_text, sizeof(fps_text), "FPS: %.1f", current_fps);
+            snprintf(fps_text, sizeof(fps_text), "FPS: %.0f", current_fps);
             frame_count = 0;
             fps_update_timer = 0.0f;
         }
@@ -272,7 +289,10 @@ int main(const int argc, char *argv[]) {
         // Render
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
-        render_ball(renderer, &ball);
+
+        for (int i = 0; i < num_balls; i++) {
+            render_ball(renderer, &balls[i]);
+        }
         
         // Render FPS counter
         render_text(renderer, font, fps_text, 10, 10);
