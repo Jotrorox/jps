@@ -8,6 +8,7 @@
 #include <SDL2/SDL.h>
 #include <SDL_stdinc.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_thread.h>
 
 #define _USE_MATH_DEFINES
 
@@ -49,6 +50,9 @@ Uint32 fps_last_time = 0;
 int fps_counter = 0;
 int current_fps = 0;
 
+#define NUM_THREADS 4
+#define BALLS_PER_THREAD (MAX_BALLS / NUM_THREADS)
+
 typedef struct {
     float x, y;        // position in meters
     float vx, vy;      // velocity in m/s
@@ -57,6 +61,14 @@ typedef struct {
     float radius;      // radius in meters
     SDL_Color color;   // color
 } Ball;
+
+typedef struct {
+    Ball* balls;
+    int start_index;
+    int end_index;
+    float delta_time;
+    SDL_mutex* mutex;
+} ThreadData;
 
 void calculate_drag_force(Ball* ball, float* fx, float* fy) {
     float velocity_squared = ball->vx * ball->vx + ball->vy * ball->vy;
@@ -344,6 +356,34 @@ void render_fps(SDL_Renderer* renderer, TTF_Font* font, int fps) {
     
     SDL_FreeSurface(surface);
     SDL_DestroyTexture(texture);
+}
+
+int physics_thread(void* data) {
+    ThreadData* thread_data = (ThreadData*)data;
+    
+    for (int i = thread_data->start_index; i < thread_data->end_index; i++) {
+        update_physics(&thread_data->balls[i], thread_data->delta_time);
+    }
+    
+    return 0;
+}
+
+int collision_thread(void* data) {
+    ThreadData* thread_data = (ThreadData*)data;
+    
+    for (int i = thread_data->start_index; i < thread_data->end_index; i++) {
+        for (int j = i + 1; j < thread_data->end_index; j++) {
+            SDL_LockMutex(thread_data->mutex);
+            prevent_ball_overlap(&thread_data->balls[i], &thread_data->balls[j]);
+            if (distance_between_balls(&thread_data->balls[i], &thread_data->balls[j]) <= 
+                (thread_data->balls[i].radius + thread_data->balls[j].radius)) {
+                resolve_collision(&thread_data->balls[i], &thread_data->balls[j]);
+            }
+            SDL_UnlockMutex(thread_data->mutex);
+        }
+    }
+    
+    return 0;
 }
 
 int main(const int argc, char *argv[]) {
