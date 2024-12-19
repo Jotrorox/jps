@@ -110,6 +110,34 @@ void resolve_collision(Ball* b1, Ball* b2) {
     }
 }
 
+void prevent_ball_overlap(Ball* b1, Ball* b2) {
+    float dx = b2->x - b1->x;
+    float dy = b2->y - b1->y;
+    float distance = sqrtf(dx*dx + dy*dy);
+    
+    // If balls are overlapping
+    if (distance < (BALL_SIZE/PIXELS_PER_METER)) {
+        // Calculate minimum separation distance
+        float overlap = (BALL_SIZE/PIXELS_PER_METER) - distance;
+        
+        // Normalize direction vector
+        if (distance > 0) {
+            dx /= distance;
+            dy /= distance;
+        } else {
+            // If balls are at exactly same position, push right
+            dx = 1.0f;
+            dy = 0.0f;
+        }
+        
+        // Move balls apart equally
+        float move_distance = overlap * 0.5f;
+        b1->x -= dx * move_distance;
+        b1->y -= dy * move_distance;
+        b2->x += dx * move_distance;
+    }
+}
+
 void update_physics(Ball* ball, float delta_time) {
     // Calculate drag forces
     float drag_force_x, drag_force_y;
@@ -328,6 +356,7 @@ int main(const int argc, char *argv[]) {
         // Setup collision detection
         for (int i = 0; i < num_balls; i++) {
             for (int j = i + 1; j < num_balls; j++) {
+                prevent_ball_overlap(&balls[i], &balls[j]);
                 if (distance_between_balls(&balls[i], &balls[j]) <= 
                     (balls[i].radius + balls[j].radius)) {
                     resolve_collision(&balls[i], &balls[j]);
