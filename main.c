@@ -57,6 +57,59 @@ void calculate_drag_force(Ball* ball, float* fx, float* fy) {
     *fy = -(drag_magnitude * ball->vy / velocity_magnitude);
 }
 
+float distance_between_balls(Ball* b1, Ball* b2) {
+    float dx = (b1->x - b2->x);
+    float dy = (b1->y - b2->y);
+    return sqrtf(dx * dx + dy * dy);
+}
+
+void resolve_collision(Ball* b1, Ball* b2) {
+    // Calculate normal vector
+    float nx = (b2->x - b1->x);
+    float ny = (b2->y - b1->y);
+    float dist = sqrtf(nx * nx + ny * ny);
+    nx /= dist;
+    ny /= dist;
+
+    // Relative velocity
+    float rvx = b2->vx - b1->vx;
+    float rvy = b2->vy - b1->vy;
+
+    // Relative velocity along normal
+    float velAlongNormal = rvx * nx + rvy * ny;
+
+    // Don't resolve if objects are moving apart
+    if (velAlongNormal > 0) return;
+
+    // Restitution coefficient (bounciness)
+    float e = 0.8f;
+
+    // Calculate impulse scalar
+    float j = -(1.0f + e) * velAlongNormal;
+    j /= (1.0f / b1->mass + 1.0f / b2->mass);
+
+    // Apply impulse
+    float impulse_x = j * nx;
+    float impulse_y = j * ny;
+
+    b1->vx -= impulse_x / b1->mass;
+    b1->vy -= impulse_y / b1->mass;
+    b2->vx += impulse_x / b2->mass;
+    b2->vy += impulse_y / b2->mass;
+
+    // Position correction to prevent sinking
+    const float percent = 0.2f; // penetration percentage to correct
+    const float slop = 0.01f;   // penetration allowance
+    float penetration = (b1->radius + b2->radius) - dist;
+    if (penetration > slop) {
+        float correction = (penetration * percent) / (1.0f / b1->mass + 1.0f / b2->mass);
+        b1->x -= (correction / b1->mass) * nx;
+        b1->y -= (correction / b1->mass) * ny;
+        b2->x += (correction / b2->mass) * nx;
+        b2->y += (correction / b2->mass) * ny;
+    }
+}
+
 void update_physics(Ball* ball, float delta_time) {
     // Calculate drag forces
     float drag_force_x, drag_force_y;
@@ -266,6 +319,18 @@ int main(const int argc, char *argv[]) {
             if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_s) {
                 if (num_balls < MAX_BALLS) {
                     balls[num_balls++] = test_ball;
+                } else {
+                    printf("Max balls reached!\n");
+                }
+            }
+        }
+
+        // Setup collision detection
+        for (int i = 0; i < num_balls; i++) {
+            for (int j = i + 1; j < num_balls; j++) {
+                if (distance_between_balls(&balls[i], &balls[j]) <= 
+                    (balls[i].radius + balls[j].radius)) {
+                    resolve_collision(&balls[i], &balls[j]);
                 }
             }
         }
