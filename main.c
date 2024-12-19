@@ -1,26 +1,27 @@
-#include <SDL2/SDL.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
-#include <SDL_stdinc.h>
-#define _USE_MATH_DEFINES
 #include <float.h>
-#include <SDL2/SDL_ttf.h>
 #include <stdio.h>
-#include <string.h>  // For strcmp
-#include <stdlib.h>  // For atoi
+#include <string.h>
+
+#include <SDL2/SDL.h>
+#include <SDL_stdinc.h>
+#include <SDL2/SDL_ttf.h>
+
+#define _USE_MATH_DEFINES
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
-#define WINDOW_WIDTH 640
-#define WINDOW_HEIGHT 480
+#define WINDOW_WIDTH 1280
+#define WINDOW_HEIGHT 720
 #define BALL_SIZE 15
 #define PIXELS_PER_METER 100.0f  // Conversion factor: 100 pixels = 1 meter
 
-#define MAX_BALLS 1024
+#define MAX_BALLS 4096
 
-// Physics constants (in real-world units)
 #define GRAVITY_ACCELERATION 9.81f  // m/s²
 #define TIME_STEP 0.016f           // 16ms in seconds (for 60 FPS)
 #define AIR_DENSITY 1.225f         // kg/m³
@@ -38,6 +39,7 @@ typedef struct {
     float ax, ay;      // acceleration in m/s²
     float mass;        // mass in kg
     float radius;      // radius in meters
+    SDL_Color color;   // color
 } Ball;
 
 void calculate_drag_force(Ball* ball, float* fx, float* fy) {
@@ -220,6 +222,7 @@ void render_ball(SDL_Renderer* renderer, const Ball* ball) {
             int dx = size/2 - w;
             int dy = size/2 - h;
             if ((dx*dx + dy*dy) <= ((size/2) * (size/2))) {
+                SDL_SetRenderDrawColor(renderer, ball->color.r, ball->color.g, ball->color.b, ball->color.a);
                 SDL_RenderDrawPoint(renderer, x + w, y + h);
             }
         }
@@ -275,10 +278,24 @@ int main(const int argc, char *argv[]) {
         .ax = 0.0f,
         .ay = 0.0f,
         .mass = BALL_MASS,
-        .radius = BALL_RADIUS
+        .radius = BALL_RADIUS,
+        .color = {255, 0, 0, 255}
+    };
+    
+    // Initialize ball with realistic values
+    Ball start_ball = {
+        .x = WINDOW_WIDTH / (2.0f * PIXELS_PER_METER),  // Center position in meters
+        .y = 1.0f,                                      // 1 meter from top
+        .vx = 0.0f,                                     // Start at rest
+        .vy = 0.0f,
+        .ax = 0.0f,
+        .ay = 0.0f,
+        .mass = BALL_MASS,
+        .radius = BALL_RADIUS,
+        .color = {255, 0, 255, 255}
     };
 
-    balls[num_balls++] = test_ball;
+    balls[num_balls++] = start_ball;
 
     SDL_bool running = SDL_TRUE;
     SDL_Event event;
@@ -296,7 +313,7 @@ int main(const int argc, char *argv[]) {
     char fps_text[32];
 
     // Add FPS limit handling near the start of main
-    int max_fps = 60;  // Default value
+    int max_fps = 120;  // Default value
     float frame_time_target = 1000.0f / max_fps;  // Default target time
 
     // Parse command line arguments
