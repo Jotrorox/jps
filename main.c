@@ -163,7 +163,7 @@ void update_physics(Ball* ball, float delta_time) {
     
     // Calculate accelerations (F = ma)
     ball->ax = drag_force_x / ball->mass;
-    ball->ay = GRAVITY_ACCELERATION + (drag_force_y / ball->mass);
+    ball->ay = (gravity ? GRAVITY_ACCELERATION : 0.0f) + (drag_force_y / ball->mass);
     
     // Update velocities using delta_time
     ball->vx += ball->ax * delta_time;
@@ -398,7 +398,7 @@ int main(const int argc, char *argv[]) {
     int num_balls = 0;
 
     // Initialize ball with realistic values
-    Ball test_ball = {
+    Ball default_ball = {
         .x = WINDOW_WIDTH / (2.0f * PIXELS_PER_METER),  // Center position in meters
         .y = 1.0f,                                      // 1 meter from top
         .vx = 0.0f,                                     // Start at rest
@@ -409,21 +409,7 @@ int main(const int argc, char *argv[]) {
         .radius = BALL_RADIUS,
         .color = {255, 0, 0, 255}
     };
-    
-    // Initialize ball with realistic values
-    Ball start_ball = {
-        .x = WINDOW_WIDTH / (2.0f * PIXELS_PER_METER),  // Center position in meters
-        .y = 1.0f,                                      // 1 meter from top
-        .vx = 0.0f,                                     // Start at rest
-        .vy = 0.0f,
-        .ax = 0.0f,
-        .ay = 0.0f,
-        .mass = BALL_MASS,
-        .radius = BALL_RADIUS,
-        .color = {255, 0, 255, 255}
-    };
-
-    balls[num_balls++] = start_ball;
+    balls[num_balls++] = default_ball;
 
     SDL_bool running = SDL_TRUE;
     SDL_Event event;
@@ -504,7 +490,7 @@ int main(const int argc, char *argv[]) {
                             switch(option) {
                                 case 0: // Reset all balls
                                     num_balls = 1;
-                                    balls[0] = start_ball;  // Use start_ball instead of test_ball
+                                    balls[0] = default_ball;  // Use start_ball instead of test_ball
                                     break;
                                 case 1: // Toggle gravity
                                     gravity = !gravity;
@@ -536,7 +522,7 @@ int main(const int argc, char *argv[]) {
             }
             if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_s) {
                 if (num_balls < MAX_BALLS) {
-                    balls[num_balls++] = test_ball;
+                    balls[num_balls++] = default_ball;
                 } else {
                     printf("Max balls reached!\n");
                 }
@@ -585,12 +571,13 @@ int main(const int argc, char *argv[]) {
         SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
         SDL_RenderFillRect(renderer, &menu_button);
         SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-        SDL_RenderDrawLine(renderer, menu_button.x + 5, menu_button.y + 7, 
-                          menu_button.x + 25, menu_button.y + 7);
-        SDL_RenderDrawLine(renderer, menu_button.x + 5, menu_button.y + 15, 
-                          menu_button.x + 25, menu_button.y + 15);
-        SDL_RenderDrawLine(renderer, menu_button.x + 5, menu_button.y + 23, 
-                          menu_button.x + 25, menu_button.y + 23);
+        SDL_Rect menu_line1 = {menu_button.x + 5, menu_button.y + MENU_BUTTON_SIZE - 10, MENU_BUTTON_SIZE - 10, 3};
+        SDL_Rect menu_line2 = {menu_button.x + 5, menu_button.y + MENU_BUTTON_SIZE - 18, MENU_BUTTON_SIZE - 10, 3};
+        SDL_Rect menu_line3 = {menu_button.x + 5, menu_button.y + MENU_BUTTON_SIZE - 26, MENU_BUTTON_SIZE - 10, 3};
+        
+        SDL_RenderFillRect(renderer, &menu_line1);
+        SDL_RenderFillRect(renderer, &menu_line2); 
+        SDL_RenderFillRect(renderer, &menu_line3);
 
         // Draw menu panel if open
         if (menu_open) {
