@@ -33,6 +33,22 @@
 
 #define FPS_UPDATE_INTERVAL 0.5f  // Update FPS display every 0.5 seconds
 
+#define MENU_BUTTON_SIZE 40
+#define MENU_PANEL_WIDTH 250
+#define MENU_PANEL_HEIGHT 350
+#define MENU_OPTION_HEIGHT 50
+
+#define FONT_SIZE 18
+#define MENU_TITLE_SIZE 24
+#define TEXT_PADDING 15
+
+SDL_bool gravity = SDL_TRUE;
+int target_fps = 60;
+float frame_delay = 1000.0f / 60.0f;  // Default to 60 FPS
+Uint32 fps_last_time = 0;
+int fps_counter = 0;
+int current_fps = 0;
+
 typedef struct {
     float x, y;        // position in meters
     float vx, vy;      // velocity in m/s
@@ -229,12 +245,101 @@ void render_ball(SDL_Renderer* renderer, const Ball* ball) {
     }
 }
 
-void render_text(SDL_Renderer* renderer, TTF_Font* font, const char* text, int x, int y) {
-    SDL_Color color = {0, 0, 0, 255};  // Black color
-    SDL_Surface* surface = TTF_RenderText_Solid(font, text, color);
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+void render_text(SDL_Renderer* renderer, TTF_Font* font, const char* text, int x, int y, SDL_Color color) {
+    SDL_Surface* surface = TTF_RenderText_Blended(font, text, color);
+    if (!surface) {
+        return;
+    }
     
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
     SDL_Rect dest = {x, y, surface->w, surface->h};
+    
+    SDL_RenderCopy(renderer, texture, NULL, &dest);
+    
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+}
+
+void draw_menu(SDL_Renderer* renderer, TTF_Font* regular_font, TTF_Font* title_font, SDL_Rect menu_panel) {
+    // Colors for a more modern look
+    SDL_Color text_color = {40, 40, 40, 255};
+    SDL_Color title_color = {20, 20, 20, 255};
+    SDL_Color hover_color = {230, 230, 230, 255};
+    
+    // Draw panel background with subtle shadow
+    SDL_SetRenderDrawColor(renderer, 200, 200, 200, 180);
+    SDL_Rect shadow = {menu_panel.x + 3, menu_panel.y + 3, menu_panel.w, menu_panel.h};
+    SDL_RenderFillRect(renderer, &shadow);
+    
+    // Main panel with slightly rounded corners effect
+    SDL_SetRenderDrawColor(renderer, 248, 248, 248, 255);
+    SDL_RenderFillRect(renderer, &menu_panel);
+    
+    // Add a subtle border
+    SDL_SetRenderDrawColor(renderer, 220, 220, 220, 255);
+    SDL_RenderDrawRect(renderer, &menu_panel);
+    
+    // Draw menu title with padding
+    render_text(renderer, title_font, "Settings", 
+                menu_panel.x + menu_panel.w/2 - 50, // Center title
+                menu_panel.y + TEXT_PADDING, 
+                title_color);
+    
+    // Draw separator line below title
+    SDL_SetRenderDrawColor(renderer, 220, 220, 220, 255);
+    SDL_RenderDrawLine(renderer, 
+                      menu_panel.x + TEXT_PADDING,
+                      menu_panel.y + MENU_TITLE_SIZE + TEXT_PADDING * 2,
+                      menu_panel.x + menu_panel.w - TEXT_PADDING,
+                      menu_panel.y + MENU_TITLE_SIZE + TEXT_PADDING * 2);
+
+    // Draw menu options with hover effect
+    const char* options[] = {
+        "Reset Balls",
+        "Toggle Gravity",
+        "Clear All",
+        "Toggle FPS"
+    };
+    
+    int mouseX, mouseY;
+    SDL_GetMouseState(&mouseX, &mouseY);
+    
+    for (int i = 0; i < 4; i++) {
+        SDL_Rect option_rect = {
+            menu_panel.x + TEXT_PADDING/2,
+            menu_panel.y + MENU_TITLE_SIZE + TEXT_PADDING * 2 + (i * MENU_OPTION_HEIGHT),
+            menu_panel.w - TEXT_PADDING,
+            MENU_OPTION_HEIGHT
+        };
+        
+        // Check if mouse is hovering over option
+        if (mouseX >= option_rect.x && mouseX <= option_rect.x + option_rect.w &&
+            mouseY >= option_rect.y && mouseY <= option_rect.y + option_rect.h) {
+            SDL_SetRenderDrawColor(renderer, hover_color.r, hover_color.g, hover_color.b, hover_color.a);
+            SDL_RenderFillRect(renderer, &option_rect);
+        }
+        
+        render_text(renderer, regular_font, options[i],
+                   option_rect.x + TEXT_PADDING,
+                   option_rect.y + (MENU_OPTION_HEIGHT - FONT_SIZE)/2,
+                   text_color);
+    }
+}
+
+void render_fps(SDL_Renderer* renderer, TTF_Font* font, int fps) {
+    char fps_text[32];
+    snprintf(fps_text, sizeof(fps_text), "FPS: %d", fps);
+    
+    SDL_Color fps_color = {0, 0, 0, 255};  // Black text
+    
+    SDL_Surface* surface = TTF_RenderText_Blended(font, fps_text, fps_color);
+    if (!surface) {
+        return;
+    }
+    
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_Rect dest = {10, 10, surface->w, surface->h};
+    
     SDL_RenderCopy(renderer, texture, NULL, &dest);
     
     SDL_FreeSurface(surface);
@@ -248,6 +353,29 @@ int main(const int argc, char *argv[]) {
     SDL_Init(SDL_INIT_VIDEO);
     TTF_Init();  // Initialize SDL_ttf
     
+    if (TTF_Init() < 0) {
+        printf("TTF initialization failed: %s\n", TTF_GetError());
+        return 1;
+    }
+
+    TTF_Font* regular_font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", FONT_SIZE);
+    TTF_Font* title_font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", MENU_TITLE_SIZE);
+
+    if (!regular_font || !title_font) {
+        // Try alternate font paths
+        regular_font = TTF_OpenFont("rsc/Ubuntu-Regular.ttf", FONT_SIZE);
+        title_font = TTF_OpenFont("rsc/Ubuntu-Regular.ttf", MENU_TITLE_SIZE);
+        
+        if (!regular_font || !title_font) {
+            printf("Failed to load fonts: %s\n", TTF_GetError());
+            return 1;
+        }
+    }
+
+    // Enable font hinting for better rendering
+    TTF_SetFontHinting(regular_font, TTF_HINTING_LIGHT);
+    TTF_SetFontHinting(title_font, TTF_HINTING_LIGHT);
+
     // Load font
     TTF_Font* font = TTF_OpenFont("rsc/Ubuntu-Regular.ttf", 24);
     if (!font) {
@@ -328,6 +456,15 @@ int main(const int argc, char *argv[]) {
         }
     }
 
+    SDL_bool menu_open = SDL_FALSE;
+    SDL_Rect menu_button = {0, 0, MENU_BUTTON_SIZE, MENU_BUTTON_SIZE}; // Will position in init
+    SDL_Rect menu_panel = {0, 0, MENU_PANEL_WIDTH, MENU_PANEL_HEIGHT}; // Will position in init
+
+    menu_button.x = WINDOW_WIDTH - MENU_BUTTON_SIZE - 10;
+    menu_button.y = 10;
+    menu_panel.x = WINDOW_WIDTH - MENU_PANEL_WIDTH - 10;
+    menu_panel.y = MENU_BUTTON_SIZE + 20;
+
     while (running) {
         // Calculate frame start time
         Uint32 frame_start = SDL_GetTicks();
@@ -350,13 +487,49 @@ int main(const int argc, char *argv[]) {
             if (event.type == SDL_MOUSEBUTTONDOWN) {
                 int mouseX, mouseY;
                 SDL_GetMouseState(&mouseX, &mouseY);
-                float dx = mouseX - (balls[0].x * PIXELS_PER_METER);
-                float dy = mouseY - (balls[0].y * PIXELS_PER_METER);
-                float distance = sqrt(dx*dx + dy*dy);
                 
-                float launch_speed = fmin(distance / PIXELS_PER_METER * 2.0f, 10.0f);
-                balls[0].vx = (dx / distance) * launch_speed;
-                balls[0].vy = (dy / distance) * launch_speed;
+                // Check if menu button was clicked
+                if (mouseX >= menu_button.x && mouseX <= menu_button.x + menu_button.w &&
+                    mouseY >= menu_button.y && mouseY <= menu_button.y + menu_button.h) {
+                    menu_open = !menu_open;
+                }
+                // If menu is open, check for menu option clicks
+                else if (menu_open && 
+                         mouseX >= menu_panel.x && mouseX <= menu_panel.x + menu_panel.w) {
+                    // Calculate which option was clicked based on Y position
+                    int clickY = mouseY - (menu_panel.y + MENU_TITLE_SIZE + TEXT_PADDING * 2);
+                    if (clickY >= 0) {
+                        int option = clickY / MENU_OPTION_HEIGHT;
+                        if (option >= 0 && option < 4) {  // Make sure click is within valid options
+                            switch(option) {
+                                case 0: // Reset all balls
+                                    num_balls = 1;
+                                    balls[0] = start_ball;  // Use start_ball instead of test_ball
+                                    break;
+                                case 1: // Toggle gravity
+                                    gravity = !gravity;
+                                    break;
+                                case 2: // Clear all balls
+                                    num_balls = 0;
+                                    break;
+                                case 3: // Toggle FPS (60/144)
+                                    target_fps = (target_fps == 60) ? 144 : 60;
+                                    frame_delay = 1000.0f / target_fps;
+                                    break;
+                            }
+                        }
+                    }
+                }
+                else {
+                    // Existing ball launch code
+                    float dx = mouseX - (balls[0].x * PIXELS_PER_METER);
+                    float dy = mouseY - (balls[0].y * PIXELS_PER_METER);
+                    float distance = sqrt(dx*dx + dy*dy);
+                    
+                    float launch_speed = fmin(distance / PIXELS_PER_METER * 2.0f, 10.0f);
+                    balls[0].vx = (dx / distance) * launch_speed;
+                    balls[0].vy = (dy / distance) * launch_speed;
+                }
             }
             if (event.type == SDL_KEYDOWN && (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_q)) {
                 running = SDL_FALSE;
@@ -406,8 +579,32 @@ int main(const int argc, char *argv[]) {
         }
         
         // Render FPS counter
-        render_text(renderer, font, fps_text, 10, 10);
+        render_fps(renderer, regular_font, current_fps);
+
+        // Draw menu button
+        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+        SDL_RenderFillRect(renderer, &menu_button);
+        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+        SDL_RenderDrawLine(renderer, menu_button.x + 5, menu_button.y + 7, 
+                          menu_button.x + 25, menu_button.y + 7);
+        SDL_RenderDrawLine(renderer, menu_button.x + 5, menu_button.y + 15, 
+                          menu_button.x + 25, menu_button.y + 15);
+        SDL_RenderDrawLine(renderer, menu_button.x + 5, menu_button.y + 23, 
+                          menu_button.x + 25, menu_button.y + 23);
+
+        // Draw menu panel if open
+        if (menu_open) {
+            draw_menu(renderer, regular_font, title_font, menu_panel);
+        }
         
+        // Add FPS calculation before SDL_RenderPresent
+        fps_counter++;
+        if (SDL_GetTicks() - fps_last_time >= 1000) {
+            current_fps = fps_counter;
+            fps_counter = 0;
+            fps_last_time = SDL_GetTicks();
+        }
+
         SDL_RenderPresent(renderer);
 
         // Modified frame limiting code
@@ -417,9 +614,17 @@ int main(const int argc, char *argv[]) {
                 SDL_Delay(frame_time_target - frame_time);
             }
         }
+
+        // Add frame delay at end of main loop
+        Uint32 frame_time = SDL_GetTicks() - frame_start;
+        if (frame_delay > frame_time) {
+            SDL_Delay(frame_delay - frame_time);
+        }
     }
     
     // Add cleanup
+    TTF_CloseFont(regular_font);
+    TTF_CloseFont(title_font);
     TTF_CloseFont(font);
     TTF_Quit();
     SDL_DestroyRenderer(renderer);
