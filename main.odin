@@ -12,24 +12,45 @@ Ball :: struct {
 }
 
 update :: proc(ball: ^Ball, dt: f32) {
-	g: f32 = 9.81 * 50
-	d: f32 = 0.99 / 5
+	g: f32 = 9.81 * 50 // gravity acceleration
+	d: f32 = 0.99 / 5 // drag (damping) coefficient
+	r: f32 = 0.75 // restitution (bounce factor)
+	ty: f32 = 32 // bounce threshold
+	f: f32 = 0.9 // friction (horizontal) for the ground
+	tx: f32 = 5 // horizontal friction threshold
 
-	ball.velocity = rl.Vector2Add(ball.velocity, rl.Vector2Scale(rl.Vector2{0, g}, dt))
-	dragForce := rl.Vector2Scale(ball.velocity, -d);
-    ball.velocity = rl.Vector2Add(ball.velocity, rl.Vector2Scale(dragForce, dt));
+	ball.velocity.y = ball.velocity.y + g * dt
+	ball.velocity.x = ball.velocity.x * (1 - d * dt)
+	ball.velocity.y = ball.velocity.y * (1 - d * dt)
 
-
-	if ((ball.position.x - ball.radius) <= 0 ||
-		   (ball.position.x + ball.radius) >= f32(rl.GetScreenWidth())) {
-		ball.velocity.x *= -1
+	if (ball.position.x - ball.radius) <= 0 {
+		ball.position.x = ball.radius
+		ball.velocity.x *= -r
 	}
-	if ((ball.position.y - ball.radius) <= 0 ||
-		   (ball.position.y + ball.radius) >= f32(rl.GetScreenHeight())) {
-		ball.velocity.y *= -1
+	if (ball.position.x + ball.radius) >= f32(rl.GetScreenWidth()) {
+		ball.position.x = f32(rl.GetScreenWidth()) - ball.radius
+		ball.velocity.x *= -r
 	}
 
-	ball.position = rl.Vector2Add(ball.position, rl.Vector2Scale(ball.velocity, dt))
+	if (ball.position.y - ball.radius) <= 0 {
+		ball.position.y = ball.radius
+		ball.velocity.y *= -r
+	}
+	if (ball.position.y + ball.radius) >= f32(rl.GetScreenHeight()) {
+		ball.position.y = f32(rl.GetScreenHeight()) - ball.radius
+		ball.velocity.y *= -r
+
+		if abs(ball.velocity.y) < ty {
+			ball.velocity.y = 0
+
+			ball.velocity.x = ball.velocity.x * f
+			if abs(ball.velocity.x) < tx {
+				ball.velocity.x = 0
+			}
+		}
+	}
+
+	ball.position = ball.position + ball.velocity * dt
 }
 
 main :: proc() {
