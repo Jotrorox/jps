@@ -1,6 +1,8 @@
 package main
 
 import "core:fmt"
+import "core:math"
+import "core:math/rand"
 import "core:strings"
 import rl "vendor:raylib"
 
@@ -90,9 +92,29 @@ main :: proc() {
 
 		rl.DrawFPS(10, 10)
 
-		if rl.IsKeyPressed(rl.KeyboardKey.ESCAPE) {
+		if rl.IsKeyPressed(rl.KeyboardKey.ESCAPE) || rl.IsKeyPressed(rl.KeyboardKey.Q) {
 			break
 		}
+
+		if rl.IsKeyPressed(rl.KeyboardKey.SPACE) {
+			append(
+				&balls,
+				Ball {
+					rl.Vector2 {
+						f32(rand.int31_max(rl.GetScreenWidth())),
+						f32(rand.int31_max(rl.GetScreenHeight())),
+					},
+					rl.Vector2{0, 0},
+					10,
+					rl.MAROON,
+				},
+			)
+		}
+
+        if rl.IsKeyPressed(rl.KeyboardKey.R) {
+            balls = [dynamic]Ball{}
+            append(&balls, Ball{rl.Vector2{400, 225}, rl.Vector2{0, 0}, 10, rl.MAROON})
+        }
 	}
 
 	rl.CloseWindow()
