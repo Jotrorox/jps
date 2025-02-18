@@ -12,7 +12,6 @@
 #include "render.hpp"
 #include "collision.hpp"
 #include "font_data.hpp"
-// Optionally include embedded font header (not shown here) if using font embedding.
 
 constexpr int WINDOW_WIDTH  = 800;
 constexpr int WINDOW_HEIGHT = 600;
@@ -27,7 +26,7 @@ int main(int argc, char* argv[]) {
         SDL_Quit();
         return 1;
     }
-    SDL_Window* window = SDL_CreateWindow("Multithreaded Physics: Balls & Boxes",
+    SDL_Window* window = SDL_CreateWindow("JPS",
                                           SDL_WINDOWPOS_CENTERED,
                                           SDL_WINDOWPOS_CENTERED,
                                           WINDOW_WIDTH, WINDOW_HEIGHT,
@@ -85,7 +84,10 @@ int main(int argc, char* argv[]) {
     int dragStartX = 0, dragStartY = 0;
     int currentDragX = 0, currentDragY = 0;
     constexpr float VELOCITY_MULTIPLIER = 3.0f;
-
+    
+    // Mode flag: if true, user is creating a box by dragging, else a ball.
+    bool previewBoxMode = false;
+    
     // Toggle for showing velocity info above Balls.
     bool showVelocityInfo = false;
 
@@ -112,6 +114,8 @@ int main(int argc, char* argv[]) {
                         dragStartY = event.button.y;
                         currentDragX = event.button.x;
                         currentDragY = event.button.y;
+                        // Check modifier key: if SHIFT is held at start then set box mode.
+                        previewBoxMode = (SDL_GetModState() & KMOD_SHIFT) != 0;
                     }
                     break;
                 case SDL_MOUSEMOTION:
@@ -125,22 +129,33 @@ int main(int argc, char* argv[]) {
                         dragging = false;
                         int dragEndX = event.button.x;
                         int dragEndY = event.button.y;
-                        float vx = (dragEndX - dragStartX) * VELOCITY_MULTIPLIER;
-                        float vy = (dragEndY - dragStartY) * VELOCITY_MULTIPLIER;
-                        Object* newObj = nullptr;
-                        // If SHIFT is held, spawn a Box (static environment), else spawn a Ball (dynamic).
-                        if (SDL_GetModState() & KMOD_SHIFT) {
-                            newObj = new Box(static_cast<float>(dragStartX),
-                                             static_cast<float>(dragStartY),
-                                             40.0f, 40.0f);
+                        if (previewBoxMode) {
+                            // For box creation, determine width and height from drag.
+                            int width = std::abs(dragEndX - dragStartX);
+                            int height = std::abs(dragEndY - dragStartY);
+                            // Avoid creating zero-sized boxes.
+                            if(width < 5) width = 5;
+                            if(height < 5) height = 5;
+                            // Set center to the midpoint.
+                            float centerX = (dragStartX + dragEndX) / 2.0f;
+                            float centerY = (dragStartY + dragEndY) / 2.0f;
+                            // Create a new Box with specified size.
+                            Object* newObj = new Box(centerX, centerY, static_cast<float>(width), static_cast<float>(height));
+                            {
+                                std::lock_guard<std::mutex> lock(objectsMutex);
+                                objects.push_back(newObj);
+                            }
                         } else {
-                            newObj = new Ball(static_cast<float>(dragStartX),
-                                              static_cast<float>(dragStartY),
-                                              vx, vy, 20.0f);
-                        }
-                        {
-                            std::lock_guard<std::mutex> lock(objectsMutex);
-                            objects.push_back(newObj);
+                            // For ball creation, use drag vector to determine initial velocity.
+                            float vx = (dragEndX - dragStartX) * VELOCITY_MULTIPLIER;
+                            float vy = (dragEndY - dragStartY) * VELOCITY_MULTIPLIER;
+                            Object* newObj = new Ball(static_cast<float>(dragStartX),
+                                                      static_cast<float>(dragStartY),
+                                                      vx, vy, 20.0f);
+                            {
+                                std::lock_guard<std::mutex> lock(objectsMutex);
+                                objects.push_back(newObj);
+                            }
                         }
                     }
                     break;
@@ -149,19 +164,33 @@ int main(int argc, char* argv[]) {
         // Clear the screen.
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        // Draw a ground line.
+        
+        // Draw ground line.
         SDL_SetRenderDrawColor(renderer, 150, 75, 0, 255);
         SDL_RenderDrawLine(renderer, 0, WINDOW_HEIGHT - 1, WINDOW_WIDTH, WINDOW_HEIGHT - 1);
-        // If dragging, draw the drag vector.
-        if (dragging) {
+        
+        // Draw preview if dragging in box creation mode.
+        if (dragging && previewBoxMode) {
+            // Compute rectangle: top-left and dimensions.
+            int rectX = std::min(dragStartX, currentDragX);
+            int rectY = std::min(dragStartY, currentDragY);
+            int rectW = std::abs(currentDragX - dragStartX);
+            int rectH = std::abs(currentDragY - dragStartY);
+            SDL_Rect previewRect = { rectX, rectY, rectW, rectH };
+            // Set preview color (e.g., green) and draw outline.
+            SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+            SDL_RenderDrawRect(renderer, &previewRect);
+        }
+        // If dragging and not in box mode, draw the drag vector for ball creation.
+        else if (dragging && !previewBoxMode) {
             SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
             SDL_RenderDrawLine(renderer, dragStartX, dragStartY, currentDragX, currentDragY);
         }
+        
         // Render all objects.
         {
             std::lock_guard<std::mutex> lock(objectsMutex);
             for (const auto obj : objects) {
-                // Set color: white for Balls, gray for Boxes.
                 if (obj->type == ObjectType::BALL)
                     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
                 else
@@ -171,6 +200,7 @@ int main(int argc, char* argv[]) {
                     obj->renderVelocityInfo(renderer, font);
             }
         }
+        
         // Calculate and render FPS.
         frames++;
         Uint32 currentTicks = SDL_GetTicks();
@@ -198,7 +228,6 @@ int main(int argc, char* argv[]) {
         if (frameTime < 16)
             SDL_Delay(16 - frameTime);
     }
-
     simulationRunning = false;
     physicsThread.join();
 
