@@ -4,12 +4,16 @@
 #include <thread>
 #include <mutex>
 #include <sstream>
+#include <vector>
+#include "object.hpp"
 #include "ball.hpp"
+#include "box.hpp"
 #include "physics.hpp"
 #include "render.hpp"
-#include "font_data.hpp"  // Embedded font data
+#include "collision.hpp"
+#include "font_data.hpp"
+// Optionally include embedded font header (not shown here) if using font embedding.
 
-// Window dimensions
 constexpr int WINDOW_WIDTH  = 800;
 constexpr int WINDOW_HEIGHT = 600;
 
@@ -18,15 +22,12 @@ int main(int argc, char* argv[]) {
         std::cerr << "SDL_Init Error: " << SDL_GetError() << "\n";
         return 1;
     }
-
     if (TTF_Init() != 0) {
         std::cerr << "TTF_Init Error: " << TTF_GetError() << "\n";
         SDL_Quit();
         return 1;
     }
-
-    // Create the window and renderer.
-    SDL_Window* window = SDL_CreateWindow("Physics Simulation with FPS & Embedded Font",
+    SDL_Window* window = SDL_CreateWindow("Multithreaded Physics: Balls & Boxes",
                                           SDL_WINDOWPOS_CENTERED,
                                           SDL_WINDOWPOS_CENTERED,
                                           WINDOW_WIDTH, WINDOW_HEIGHT,
@@ -37,7 +38,6 @@ int main(int argc, char* argv[]) {
          SDL_Quit();
          return 1;
     }
-
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (!renderer) {
          std::cerr << "SDL_CreateRenderer Error: " << SDL_GetError() << "\n";
@@ -60,7 +60,7 @@ int main(int argc, char* argv[]) {
     // Open the font from the RWops; the "1" flag tells SDL_ttf to free the RWops for us.
     TTF_Font* font = TTF_OpenFontRW(rw, 1, 24);
     if (!font) {
-        std::cerr << "TTF_OpenFontRW Error: " << TTF_GetError() << "\n";
+        std::cerr << "TTF_OpenFont Error: " << TTF_GetError() << "\n";
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         TTF_Quit();
@@ -68,22 +68,27 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Initialize the ball in the center with an initial velocity.
-    Ball ball;
-    ball.x = WINDOW_WIDTH / 2.0f;
-    ball.y = WINDOW_HEIGHT / 2.0f;
-    ball.vx = 200.0f;  // horizontal velocity (pixels/s)
-    ball.vy = -300.0f; // vertical velocity (pixels/s)
-    ball.radius = 20.0f;
+    // Store objects as pointers to the base class.
+    std::vector<Object*> objects;
+    std::mutex objectsMutex;
 
+    // Start the physics thread.
     bool simulationRunning = true;
-    std::mutex ballMutex;
-
-    // Start the physics simulation thread.
-    std::thread physicsThread(physicsThreadFunction, std::ref(simulationRunning), std::ref(ball), std::ref(ballMutex));
+    std::thread physicsThread(physicsThreadFunction, std::ref(simulationRunning),
+                              std::ref(objects), std::ref(objectsMutex));
 
     bool quit = false;
     SDL_Event event;
+
+    // Variables for spawning objects using mouse drag.
+    bool dragging = false;
+    int dragStartX = 0, dragStartY = 0;
+    int currentDragX = 0, currentDragY = 0;
+    constexpr float VELOCITY_MULTIPLIER = 3.0f;
+
+    // Toggle for showing velocity info above Balls.
+    bool showVelocityInfo = false;
+
     Uint32 fpsTimer = SDL_GetTicks();
     int frames = 0;
     float currentFPS = 0.0f;
@@ -91,26 +96,81 @@ int main(int argc, char* argv[]) {
     while (!quit) {
         Uint32 frameStart = SDL_GetTicks();
         while(SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
-                quit = true;
+            switch(event.type) {
+                case SDL_QUIT:
+                    quit = true;
+                    break;
+                case SDL_KEYDOWN:
+                    // Toggle velocity info with V key.
+                    if (event.key.keysym.sym == SDLK_v)
+                        showVelocityInfo = !showVelocityInfo;
+                    break;
+                case SDL_MOUSEBUTTONDOWN:
+                    if (event.button.button == SDL_BUTTON_LEFT) {
+                        dragging = true;
+                        dragStartX = event.button.x;
+                        dragStartY = event.button.y;
+                        currentDragX = event.button.x;
+                        currentDragY = event.button.y;
+                    }
+                    break;
+                case SDL_MOUSEMOTION:
+                    if (dragging) {
+                        currentDragX = event.motion.x;
+                        currentDragY = event.motion.y;
+                    }
+                    break;
+                case SDL_MOUSEBUTTONUP:
+                    if (dragging && event.button.button == SDL_BUTTON_LEFT) {
+                        dragging = false;
+                        int dragEndX = event.button.x;
+                        int dragEndY = event.button.y;
+                        float vx = (dragEndX - dragStartX) * VELOCITY_MULTIPLIER;
+                        float vy = (dragEndY - dragStartY) * VELOCITY_MULTIPLIER;
+                        Object* newObj = nullptr;
+                        // If SHIFT is held, spawn a Box (static environment), else spawn a Ball (dynamic).
+                        if (SDL_GetModState() & KMOD_SHIFT) {
+                            newObj = new Box(static_cast<float>(dragStartX),
+                                             static_cast<float>(dragStartY),
+                                             40.0f, 40.0f);
+                        } else {
+                            newObj = new Ball(static_cast<float>(dragStartX),
+                                              static_cast<float>(dragStartY),
+                                              vx, vy, 20.0f);
+                        }
+                        {
+                            std::lock_guard<std::mutex> lock(objectsMutex);
+                            objects.push_back(newObj);
+                        }
+                    }
+                    break;
             }
         }
-
         // Clear the screen.
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-
-        // Render a ground line.
+        // Draw a ground line.
         SDL_SetRenderDrawColor(renderer, 150, 75, 0, 255);
         SDL_RenderDrawLine(renderer, 0, WINDOW_HEIGHT - 1, WINDOW_WIDTH, WINDOW_HEIGHT - 1);
-
-        // Render the ball.
-        {
-            std::lock_guard<std::mutex> lock(ballMutex);
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            renderBall(renderer, ball);
+        // If dragging, draw the drag vector.
+        if (dragging) {
+            SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+            SDL_RenderDrawLine(renderer, dragStartX, dragStartY, currentDragX, currentDragY);
         }
-
+        // Render all objects.
+        {
+            std::lock_guard<std::mutex> lock(objectsMutex);
+            for (const auto obj : objects) {
+                // Set color: white for Balls, gray for Boxes.
+                if (obj->type == ObjectType::BALL)
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                else
+                    SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
+                obj->render(renderer);
+                if (showVelocityInfo && obj->type == ObjectType::BALL)
+                    obj->renderVelocityInfo(renderer, font);
+            }
+        }
         // Calculate and render FPS.
         frames++;
         Uint32 currentTicks = SDL_GetTicks();
@@ -132,26 +192,27 @@ int main(int argc, char* argv[]) {
             }
             SDL_FreeSurface(fpsSurface);
         }
-
-        // Present the rendered frame.
         SDL_RenderPresent(renderer);
 
-        // Frame delay to cap near 60 FPS using delta time.
         Uint32 frameTime = SDL_GetTicks() - frameStart;
-        if (frameTime < 16) {
+        if (frameTime < 16)
             SDL_Delay(16 - frameTime);
-        }
     }
 
-    // Clean up.
     simulationRunning = false;
     physicsThread.join();
 
+    // Clean up dynamically allocated objects.
+    {
+        std::lock_guard<std::mutex> lock(objectsMutex);
+        for (auto obj : objects)
+            delete obj;
+        objects.clear();
+    }
     TTF_CloseFont(font);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     TTF_Quit();
     SDL_Quit();
-
     return 0;
 }

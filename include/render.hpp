@@ -2,9 +2,10 @@
 #define RENDER_HPP
 
 #include <SDL2/SDL.h>
-#include "ball.hpp"
+#include <SDL2/SDL_ttf.h>
+#include "object.hpp"
 
-// Render the ball using a simple circle drawing algorithm.
-void renderBall(SDL_Renderer* renderer, const Ball &ball);
+// A helper that calls the object's render() method.
+void renderObject(SDL_Renderer* renderer, const Object* obj);
 
 #endif // RENDER_HPP

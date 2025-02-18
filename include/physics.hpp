@@ -1,14 +1,12 @@
 #ifndef PHYSICS_HPP
 #define PHYSICS_HPP
 
-#include "ball.hpp"
+#include <vector>
 #include <mutex>
+#include "object.hpp"
 
-// Update the physics of the ball over a given timestep using a 4th order Runge–Kutta method.
-// This function applies air drag and, when the ball is on the ground, ground friction.
-void updatePhysics(Ball &ball, float dt);
-
-// Thread function that continuously updates the ball's physics using delta time.
-void physicsThreadFunction(bool &running, Ball &ball, std::mutex &ballMutex);
+// The physics thread function updates all objects and resolves collisions.
+// The vector contains pointers to dynamically allocated Object (Ball or Box).
+void physicsThreadFunction(bool &running, std::vector<Object*> &objects, std::mutex &objectsMutex);
 
 #endif // PHYSICS_HPP
