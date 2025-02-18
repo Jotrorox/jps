@@ -11,11 +11,11 @@
 </p>
 
 
-JPS is a simple gui written in C and SDL2 used to simulate basic physic behaviour and have some fun with doing calculations in C.
+JPS is a simple gui written in C++ and SDL2 used to simulate basic physic behaviour and have some fun with doing calculations in C++.
 
 ## Run Locally
 
-> Please ensure you have gcc, make and SDL2 installed on your system
+> Please ensure you have g++, make and SDL2 installed on your system
 
 Clone the project
 
@@ -32,14 +32,31 @@ Go to the project directory
 Build the project
 
 ```bash
-  make build
+  make run
 ```
 
-Run the executable
+### Other make commands
 
+Displaying a simple help message that explains all subcommands
 ```bash
-  ./jps
+  make help
 ```
+
+Cleaning the project/removing old build data
+```bash
+  make clean
+```
+
+Building the project in realease mode (Makes it smaller, faster and removes debug information)
+```bash
+  make release
+```
+
+Build the project with additional debug information
+```bash
+  make debug
+```
+
 
 ## Contribute
 

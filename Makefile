@@ -14,7 +14,6 @@ OBJS = $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRCS))
 
 TARGET = $(BUILDDIR)/simulation
 
-# The embedded font header file (generated from rsc/SNPro-Regular.ttf) if used.
 EMBEDDED_FONT = include/font_data.hpp
 
 all: $(BUILDDIR) $(TARGET)
@@ -28,9 +27,28 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.cpp
 $(TARGET): $(OBJS)
 	$(CXX) $(OBJS) -o $(TARGET) $(LDFLAGS)
 
-# Optionally, generate the embedded font header from the TTF file.
 $(EMBEDDED_FONT): $(RSC)/SNPro-Regular.ttf
 	xxd -i $< > $@
 
 clean:
-	rm -rf $(BUILDDIR) $(EMBEDDED_FONT)
+	rm -rf $(BUILDDIR)
+
+release: CXXFLAGS += -DNDEBUG -O3 -flto
+release: clean all
+
+debug : CXXFLAGS += -g -DDEBUG
+debug : clean all
+
+run: all
+	$(TARGET)
+
+help:
+	@echo "Usage: make [all|clean|release|debug|run|help]"
+	@echo "  all:     Build the simulation"
+	@echo "  clean:   Remove build files"
+	@echo "  release: Build the simulation with optimizations"
+	@echo "  debug:   Build the simulation with debugging symbols"
+	@echo "  run:     Build and run the simulation"
+	@echo "  help:    Display this help message"
+
+.PHONY: all clean release debug run help
