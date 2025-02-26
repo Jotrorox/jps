@@ -1,10 +1,12 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL2_gfxPrimitives.h>
 #include <iostream>
 #include <thread>
 #include <mutex>
 #include <sstream>
 #include <vector>
+#include <unordered_map>
 #include "object.hpp"
 #include "ball.hpp"
 #include "box.hpp"
@@ -15,6 +17,9 @@
 
 constexpr int WINDOW_WIDTH  = 800;
 constexpr int WINDOW_HEIGHT = 600;
+
+// At the global scope or in a manager class
+std::unordered_map<std::string, SDL_Texture*> textCache;
 
 int main(int argc, char* argv[]) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -37,7 +42,8 @@ int main(int argc, char* argv[]) {
          SDL_Quit();
          return 1;
     }
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, 
+        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!renderer) {
          std::cerr << "SDL_CreateRenderer Error: " << SDL_GetError() << "\n";
          SDL_DestroyWindow(window);
@@ -57,7 +63,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     // Open the font from the RWops; the "1" flag tells SDL_ttf to free the RWops for us.
-    TTF_Font* font = TTF_OpenFontRW(rw, 1, 24);
+    TTF_Font* font = TTF_OpenFontRW(rw, 1, 32);
     if (!font) {
         std::cerr << "TTF_OpenFont Error: " << TTF_GetError() << "\n";
         SDL_DestroyRenderer(renderer);
@@ -177,14 +183,22 @@ int main(int argc, char* argv[]) {
             int rectW = std::abs(currentDragX - dragStartX);
             int rectH = std::abs(currentDragY - dragStartY);
             SDL_Rect previewRect = { rectX, rectY, rectW, rectH };
-            // Set preview color (e.g., green) and draw outline.
+            
+            // Semi-transparent fill
+            SDL_SetRenderDrawColor(renderer, 0, 255, 0, 100);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_RenderFillRect(renderer, &previewRect);
+            
+            // Solid border
             SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
             SDL_RenderDrawRect(renderer, &previewRect);
         }
         // If dragging and not in box mode, draw the drag vector for ball creation.
         else if (dragging && !previewBoxMode) {
             SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-            SDL_RenderDrawLine(renderer, dragStartX, dragStartY, currentDragX, currentDragY);
+            // Use SDL2_gfx for anti-aliased lines
+            aalineRGBA(renderer, dragStartX, dragStartY, currentDragX, currentDragY, 0, 255, 0, 255);
         }
         
         // Render all objects.
@@ -209,18 +223,44 @@ int main(int argc, char* argv[]) {
             fpsTimer = currentTicks;
             frames = 0;
         }
+
         std::stringstream fpsText;
         fpsText << "FPS: " << static_cast<int>(currentFPS);
         SDL_Color white = {255, 255, 255, 255};
-        SDL_Surface* fpsSurface = TTF_RenderText_Solid(font, fpsText.str().c_str(), white);
-        if (fpsSurface) {
-            SDL_Texture* fpsTexture = SDL_CreateTextureFromSurface(renderer, fpsSurface);
-            if (fpsTexture) {
-                SDL_Rect dstRect = {10, 10, fpsSurface->w, fpsSurface->h};
-                SDL_RenderCopy(renderer, fpsTexture, nullptr, &dstRect);
-                SDL_DestroyTexture(fpsTexture);
+
+        // FPS text rendering with proper texture caching
+        std::string fpsTextStr = fpsText.str();
+        SDL_Texture* fpsTexture = nullptr;
+        int textWidth = 0, textHeight = 0;
+
+        // Check if we already have this text cached
+        if (textCache.find(fpsTextStr) != textCache.end()) {
+            fpsTexture = textCache[fpsTextStr];
+            // Query the texture to get its width and height
+            SDL_QueryTexture(fpsTexture, nullptr, nullptr, &textWidth, &textHeight);
+        } else {
+            SDL_Surface* fpsSurface = TTF_RenderText_Blended(font, fpsTextStr.c_str(), white);
+            if (fpsSurface) {
+                textWidth = fpsSurface->w;
+                textHeight = fpsSurface->h;
+                fpsTexture = SDL_CreateTextureFromSurface(renderer, fpsSurface);
+                textCache[fpsTextStr] = fpsTexture;
+                SDL_FreeSurface(fpsSurface);
             }
-            SDL_FreeSurface(fpsSurface);
+        }
+
+        if (fpsTexture) {
+            // First draw shadow
+            SDL_SetTextureColorMod(fpsTexture, 0, 0, 0);
+            SDL_SetTextureAlphaMod(fpsTexture, 128);
+            SDL_Rect shadowRect = {12, 12, textWidth, textHeight};
+            SDL_RenderCopy(renderer, fpsTexture, nullptr, &shadowRect);
+            
+            // Then draw text
+            SDL_SetTextureColorMod(fpsTexture, 255, 255, 255);
+            SDL_SetTextureAlphaMod(fpsTexture, 255);
+            SDL_Rect dstRect = {10, 10, textWidth, textHeight};
+            SDL_RenderCopy(renderer, fpsTexture, nullptr, &dstRect);
         }
         SDL_RenderPresent(renderer);
 
@@ -238,6 +278,13 @@ int main(int argc, char* argv[]) {
             delete obj;
         objects.clear();
     }
+
+    // Clean up texture cache
+    for (auto& pair : textCache) {
+        SDL_DestroyTexture(pair.second);
+    }
+    textCache.clear();
+
     TTF_CloseFont(font);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

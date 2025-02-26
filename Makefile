@@ -1,7 +1,7 @@
 # Compiler and flags
 CXX = g++
 CXXFLAGS = -std=c++11 -O2 -Wall -pthread `sdl2-config --cflags` -Iinclude
-LDFLAGS = `sdl2-config --libs` -lSDL2_ttf -pthread
+LDFLAGS = `sdl2-config --libs` -lSDL2_ttf -lSDL2_gfx -pthread
 
 # Directories
 SRCDIR = src
