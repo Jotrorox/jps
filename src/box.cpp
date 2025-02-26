@@ -17,3 +17,12 @@ void Box::render(SDL_Renderer* renderer) const {
     rect.y = static_cast<int>(y - height * 0.5f);
     SDL_RenderFillRect(renderer, &rect);
 }
+
+SDL_Rect Box::getBoundingBox() const {
+    SDL_Rect rect;
+    rect.w = static_cast<int>(width);
+    rect.h = static_cast<int>(height);
+    rect.x = static_cast<int>(x - width * 0.5f);
+    rect.y = static_cast<int>(y - height * 0.5f);
+    return rect;
+}

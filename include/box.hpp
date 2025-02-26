@@ -15,6 +15,7 @@ public:
     // Boxes are static; no physics update.
     virtual void updatePhysics(float dt) override;
     virtual void render(SDL_Renderer* renderer) const override;
+    SDL_Rect getBoundingBox() const;
 };
 
 #endif // BOX_HPP

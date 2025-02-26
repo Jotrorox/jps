@@ -118,3 +118,12 @@ void Ball::renderVelocityInfo(SDL_Renderer* renderer, TTF_Font* font) const {
         SDL_FreeSurface(surface);
     }
 }
+
+SDL_Rect Ball::getBoundingBox() const {
+    SDL_Rect rect;
+    rect.w = static_cast<int>(radius * 2);
+    rect.h = static_cast<int>(radius * 2);
+    rect.x = static_cast<int>(x - radius);
+    rect.y = static_cast<int>(y - radius);
+    return rect;
+}

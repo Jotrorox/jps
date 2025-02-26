@@ -15,6 +15,7 @@ public:
     virtual void updatePhysics(float dt) override;
     virtual void render(SDL_Renderer* renderer) const override;
     virtual void renderVelocityInfo(SDL_Renderer* renderer, TTF_Font* font) const override;
+    SDL_Rect getBoundingBox() const;
 };
 
 #endif // BALL_HPP

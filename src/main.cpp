@@ -96,6 +96,8 @@ int main(int argc, char* argv[]) {
     
     // Toggle for showing velocity info above Balls.
     bool showVelocityInfo = false;
+    // Toggle for debug mode
+    bool debugMode = false;
 
     Uint32 fpsTimer = SDL_GetTicks();
     int frames = 0;
@@ -112,6 +114,9 @@ int main(int argc, char* argv[]) {
                     // Toggle velocity info with V key.
                     if (event.key.keysym.sym == SDLK_v)
                         showVelocityInfo = !showVelocityInfo;
+                    // Toggle debug mode with D key
+                    else if (event.key.keysym.sym == SDLK_d)
+                        debugMode = !debugMode;
                     break;
                 case SDL_MOUSEBUTTONDOWN:
                     if (event.button.button == SDL_BUTTON_LEFT) {
@@ -210,8 +215,14 @@ int main(int argc, char* argv[]) {
                 else
                     SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
                 obj->render(renderer);
+                
+                // Show velocity info if enabled
                 if (showVelocityInfo && obj->type == ObjectType::BALL)
                     obj->renderVelocityInfo(renderer, font);
+                
+                // Show debug info if debug mode is enabled
+                if (debugMode)
+                    renderDebugInfo(renderer, font, obj);
             }
         }
         
